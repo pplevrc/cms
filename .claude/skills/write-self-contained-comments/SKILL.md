@@ -1,6 +1,6 @@
 ---
 name: write-self-contained-comments
-description: Use this skill when writing or editing comments in code (//, ///, /* */, #, """) or technical documentation (Markdown design docs, README, CHANGELOG). Enforces self-contained writing — comments must make sense without external context such as other PRs, Issues, or conversation history. Triggers on "コメント書く", "ドキュメントを書く", "comment writing", "design doc 執筆", and applies during any code/doc edit that includes commentary or prose.
+description: Use this skill when writing or editing comments in code (//, /* */, #, """) or technical documentation (Markdown design docs, README, CHANGELOG). Enforces self-contained writing — comments must make sense without external context such as other PRs, Issues, or conversation history. Triggers on "コメント書く", "ドキュメントを書く", "comment writing", "design doc 執筆", and applies during any code/doc edit that includes commentary or prose.
 ---
 
 # write-self-contained-comments
@@ -11,8 +11,9 @@ Code comments and technical documentation must be readable in isolation. The rea
 
 | Target | Applies |
 |---|---|
-| Code comments (`//`, `///`, `/* */`, `#`, `"""`, `//!` modules, docstrings) | Yes |
-| Markdown technical docs (`design/**.md`, README, CHANGELOG, etc.) | Yes |
+| Code comments (`//`, `/* */`, `#`, `"""`, JSDoc) | Yes |
+| Markdown technical docs (`designs/**.md`, `docs/**.md`, README, CHANGELOG, etc.) | Yes |
+| `CLAUDE.md`, `SECURITY.md`, `.claude/agents/**`, `.claude/skills/**` | Yes |
 | **PR descriptions and commit messages** | No — Issue references are conventional and expected here |
 | **Linear / GitHub Issue bodies** | No — use the platform's native cross-link mechanism |
 
@@ -22,20 +23,20 @@ Code comments and technical documentation must be readable in isolation. The rea
 
 If the code itself answers "what does this do?", do not restate it. Comments are for hidden constraints, invariants, workarounds for specific bugs, or behaviors that would surprise a reader.
 
-```rust
+```typescript
 // Bad — restates what the code obviously does
-// Pull element i from arr
-let x = arr[i];
+// req から user を取り出す
+const user = req.user;
 
-// Good — captures a constraint that the code alone does not show
-// MIDI wire format uses 0-origin channels, but events.yaml `midi_channel`
-// expects 1..=16. Convert here so the schema validator accepts the value.
-let channel = wire_channel + 1;
+// Good — captures a constraint not visible in the code
+// Payload は role に関わらず req.user を返すが、本 endpoint は admin 専用なので
+// role を明示的にチェックする (CLAUDE.md §4-6 の access 明示原則)。
+if (req.user?.role !== 'admin') return res.sendStatus(403);
 ```
 
 ### 2. Do not cite Issue / PR numbers as a context-compression shortcut
 
-Phrases like "implemented in MEW-43" or "decided in PR #25" force the reader to look up an external system to understand the present text. This is harmful because:
+Phrases like "implemented in PPL-43" or "decided in PR #25" force the reader to look up an external system to understand the present text. This is harmful because:
 
 - Linear Issues never appear in `git log` / `git blame` / GitHub search, so the reference is invisible from the repository's own history
 - PR numbers are opaque on their own and require a round-trip to the GitHub UI
@@ -43,108 +44,116 @@ Phrases like "implemented in MEW-43" or "decided in PR #25" force the reader to 
 
 **Disallowed**:
 
-```rust
-// side channel allocation lives in MEW-43
-// the value range was finalized in PR #28
-// follows the events.yaml schema from MEW-44
+```typescript
+// Domain 型の構造は PPL-43 で決定
+// 公開 surface 範囲は PR #25 で確定
+// fetcher の retry 戦略は PPL-44 のとおり
 ```
 
 **Rewrites**:
 
-```rust
-// side channel (a separate mmap region) allocation is handled elsewhere
-// — this file only encodes the slot fields used to reach it.
+```typescript
+// Domain 型は Payload Raw 型のフィールドを意図的に絞る
+// (詳細: designs/02-migration-resilience.md §Raw 型と Domain 型の分離規約)。
 //
-// Value range follows the events.yaml schema spec
-// (see design/16-driver-events-schema.md).
+// 公開 surface (packages/cms-client/src/index.ts) は Domain 型と
+// fetcher のみ。Raw 型・URL 定数は export しない。
 //
-// side-channel use is canonical when side_len > 0; consumers downstream
-// rely on this invariant.
+// retry 戦略は cms-client 内部に閉じ、公開サイト側からは見えない。
 ```
 
 Guideline:
 
-- Name the **concept** that lives elsewhere ("side channel allocation", "events.yaml schema spec"), not the issue tracker entry
-- If a pointer is helpful, use a **repo-relative path** (`design/16-...md`, `crates/.../foo.rs`) — these survive in `git log` and remain navigable
-- "Out of scope here" / "handled elsewhere" / "future work" is enough; the issue number adds nothing the reader can act on
+- Name the **concept** that lives elsewhere ("Domain 型と Raw 型の分離", "公開 surface", "境界レイヤ")、Issue tracker entry の番号ではなく
+- ポインタが必要なら **repo-relative path** (`designs/02-migration-resilience.md`, `packages/cms-client/src/...`) を使う — これらは `git log` / `git blame` から辿れる
+- "本ファイル外で扱う" / "別途設計" / "今回はスコープ外" で十分なケースが多い。Issue 番号を貼っても読者が取れる行動は増えない
 
 ### 3. TODO / FIXME may carry an Issue ID
 
-`TODO` and `FIXME` are conventional grep-able markers that something is unfinished. Attaching an Issue ID lets a maintainer follow the thread, so this is the one exception.
+`TODO` と `FIXME` は「未完了である」ことを示す慣例的な grep-able マーカー。Issue ID を付けるとメンテナが追跡しやすくなるため、これは唯一の例外。
 
-```rust
-// TODO(MEW-43): enable this branch once side channel allocation lands
-// FIXME: handle payload_len > PAYLOAD_INLINE_MAX (see issue tracker)
+```typescript
+// TODO(PPL-43): R2 storage adapter の prefix を env vars 化する
+// FIXME: payload size > UPLOAD_MAX_FILE_SIZE_BYTES のときの error handling を再考する
 ```
 
-Even here, the comment must explain **what** the TODO is, not just point at a ticket.
+ただしここでも、コメントは **TODO の中身を必ず説明する**こと。チケット番号だけ指して終わりにしない。
 
 ### 4. Do not anchor text to the current task, PR, or commit
 
-"In this change…", "as of the previous commit…", "the calling code expects…" all decay over time. Describe the **current state** of the code instead.
+"In this change…", "as of the previous commit…", "the calling code expects…" のような時制を含む表現は時間とともに腐る。**現在の状態**を記述する。
 
-```rust
+```typescript
 // Bad
-// Replaced post-binding fields with a raw event payload in this PR
+// このコミットで Raw 型の re-export を削除した
 // Bad
-// MEW-37 introduced the FFI; this commit rewrites it
+// PPL-37 で導入した URL builder を本 PR でリファクタリング
 
 // Good
-// Driver → Bridge transports msgpack-encoded raw events.
-// Layer 2 binding runs on the Bridge side.
+// 公開 surface (index.ts) からは Raw 型を export しない
+// (designs/02-migration-resilience.md §Raw 型と Domain 型の分離規約)。
+//
+// URL は cms-client 内部の lib/url.ts で構築する。
+// 公開サイト側に URL 構築規則が漏れないようにするため。
 ```
 
 ### 5. Avoid delta and negation framing
 
-"Previously…", "the old layout was…", "this is not X…" all force the reader to know the prior state to parse the sentence. State the present fact directly. (See also the `doc-context-free` skill.)
+"Previously…", "the old layout was…", "this is not X…" は読者が過去を知っていることを要求する。**現在の事実を直接**書く。
+(`doc-context-free` skill も参照。)
 
 ```markdown
-Bad:  The old RingSlot was a post-binding shape; the new layout carries raw events.
-Good: RingSlot carries msgpack-encoded raw events from Driver to Bridge.
+Bad:  以前の fetcher は Raw 型を直接返していたが、新しい fetcher は Domain 型を返す。
+Good: fetcher は Raw 型を内部で Domain 型へ変換し、Domain 型を返す。
 ```
 
-CHANGELOGs are the legitimate exception — they exist to record history. Even there, list what changed in the present commit; do not re-explain the whole new design in terms of the old one.
+CHANGELOG だけは**履歴を記録するための文書**なので例外。ただし CHANGELOG でも「今回の変更内容」を書くにとどめ、新旧設計を比較する形で全体を再説明しない。
 
 ## Self-review checklist
 
-Run this after editing any comment or doc prose:
+コメント・ドキュメントを編集した後に走らせる:
 
-- [ ] Every comment explains a non-obvious WHY (otherwise delete it)
-- [ ] `grep -nE 'MEW-[0-9]+|PR #[0-9]+|Issue #[0-9]+'` returns only TODO / FIXME lines (and CHANGELOG / Issue-body files that are out of scope)
-- [ ] No "in this change", "previously", "the old", "this fixes" style time-relative phrasing
-- [ ] In-repo references use a relative path (`design/...`, `crates/...`)
-- [ ] A reader who only sees this comment, with no access to PRs or chat history, can act on it
+- [ ] すべてのコメントが non-obvious WHY を説明している（そうでないコメントは削除）
+- [ ] `grep -nE '\b[A-Z][A-Z0-9]+-[0-9]+\b|PR #[0-9]+|Issue #[0-9]+'` の結果が TODO / FIXME 行のみ（CHANGELOG / Issue 本体ファイルは対象外）
+- [ ] "in this change", "previously", "the old", "this fixes" のような時制依存表現が無い
+- [ ] In-repo 参照は relative path (`designs/...`, `packages/...`, `docs/...`) を使用
+- [ ] PR や対話履歴を見ていない読者でも、コメント単体で行動できる
+
+`<TICKET-PREFIX>-NN` の grep パターンは大文字英字＋数字の Issue ID を一律検出する。プロジェクト固有の prefix が決まっていれば置き換える (例: `PPL-[0-9]+`)。
 
 ## Examples — before / after
 
-```rust
+```typescript
 // Before
-/// payload_len <= PAYLOAD_INLINE_MAX is stored inline; otherwise the payload
-/// goes through the side channel (mmap pool, implemented in a separate
-/// issue MEW-43).
+/**
+ * `body` は Lexical JSON。HTML への変換は別途検討中
+ * (PPL-43 で取り扱う)。
+ */
 
 // After
-/// payload_len <= PAYLOAD_INLINE_MAX is stored inline; otherwise the payload
-/// is placed in the side channel (a separate mmap region) and only the
-/// offset/length are recorded here. Allocation of the side channel itself
-/// is handled outside this file.
+/**
+ * `body` は Lexical JSON。公開サイト側で HTML として描画するため、
+ * cms-client の fetcher 内で `lexicalToHtml()` を通して `bodyHtml` に変換する。
+ * 変換ロジックは packages/cms-client/src/fetchers/<entity>.ts に集約。
+ */
 ```
 
 ```markdown
 // Before
-- side channel allocation, layout and GC are handled in a separate Issue (MEW-43)
+- 公開 surface の境界は PR #28 で議論し、PPL-43 で確定した。
 
 // After
-- side channel allocation, layout and GC are out of scope for this document
-  and handled separately
+- 公開 surface (`packages/cms-client/src/index.ts`) は Domain 型と fetcher のみ。
+  Raw 型・URL 定数・Payload 用語を含む識別子は export しない。
+  詳細は designs/02-migration-resilience.md §境界レイヤ。
 ```
 
-```rust
+```typescript
 // Before
-// In this PR we removed device_id / specifier and switched to msgpack payload.
+// 本 PR で Raw 型の re-export を削除した。
 
 // After
-// Most of the time, just delete the comment — git history records the change.
-// If a remark is truly needed, describe the current shape only:
-// RingSlot carries an msgpack byte string inline.
+// コメントを残す必要が本当にあるかを先に判断する。多くの場合は git log で十分。
+// もし残すなら、現在の状態だけを書く:
+// 公開 surface には Domain 型のみが現れる。Raw 型は cms-client 内部に閉じる。
 ```
