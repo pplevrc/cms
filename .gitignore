@@ -1,0 +1,9 @@
+.claude/settings.local.json
+
+# 具体値・固有名詞・組織情報を含むドキュメント (public repo に出さない)
+designs/private/
+
+# 環境変数 (実値は .env、コミットするのは .env.example のみ)
+.env
+.env.*
+!.env.example
