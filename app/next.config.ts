@@ -24,7 +24,8 @@ const nextConfig: NextConfig = {
     return webpackConfig
   },
   turbopack: {
-    root: path.resolve(dirname),
+    // pnpm workspace の root (pnpm-workspace.yaml がある場所) を指す
+    root: path.resolve(dirname, '..'),
   },
 }
 
