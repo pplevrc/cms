@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "prepare": "lefthook install",
-    "secretlint": "secretlint --maskSecrets '**/*'"
+    "secretlint": "secretlint --maskSecrets '**/*'",
+    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
+    "lint": "pnpm -r --workspace-concurrency=1 run lint",
+    "test:int": "pnpm -r --workspace-concurrency=1 run test:int",
+    "test:e2e": "pnpm -r --workspace-concurrency=1 run test:e2e"
   },
   "devDependencies": {
     "lefthook": "^2.1.6",

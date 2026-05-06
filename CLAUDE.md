@@ -162,6 +162,14 @@ AI が read-only で参照できる場合がある（`.claude/settings.local.jso
 - [add-payload-collection](./.claude/skills/add-payload-collection/SKILL.md) — Collection 追加時の必須要素（access 明示、`createdBy` hook 等）
 - [add-cms-client-fetcher](./.claude/skills/add-cms-client-fetcher/SKILL.md) — fetcher 追加時の Raw→Domain 変換規約
 
+### Skills（ワークフロー: タスク管理 / PR レビュー）
+
+- [route-task-management-through-soloscrum](./.claude/skills/route-task-management-through-soloscrum/SKILL.md) — Issue 起票・分解・優先度・SP 判定を soloscrum slash command 経由でルーティング
+- [defer-pr-merge-to-user](./.claude/skills/defer-pr-merge-to-user/SKILL.md) — PR の最終 approve / merge は必ずユーザーが行う（Claude は Pass サマリで停止）
+- [create-prs-as-draft-until-ready](./.claude/skills/create-prs-as-draft-until-ready/SKILL.md) — PR は必ず `--draft` で作成し、ローカルレビュー完了後に ready 化
+- [run-local-code-review-before-marking-ready](./.claude/skills/run-local-code-review-before-marking-ready/SKILL.md) — `gh pr ready` 前に `/code-review:code-review` と `/coderabbit:review` を両方走らせる
+- [handle-coderabbit-review](./.claude/skills/handle-coderabbit-review/SKILL.md) — CodeRabbit のコメント全件（Nitpick 含む）を採用 / 理由付き見送りで判定して反映
+
 ### Skills（ドキュメント品質）
 
 - [doc-context-free](./.claude/skills/doc-context-free/SKILL.md) — 設計ドキュメントから文脈依存表現（履歴・差分・否定形）を排除
