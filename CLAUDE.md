@@ -153,6 +153,10 @@ AI が read-only で参照できる場合がある（`.claude/settings.local.jso
 - [migration-resilience-reviewer](./.claude/agents/migration-resilience-reviewer.md) — `cms-client` 境界レイヤの侵食を検出
 - [loop-reviewer](./.claude/agents/loop-reviewer.md) — find-contradiction → fix → commit を最大 5 ラウンド回す
 
+### Skills（Payload リファレンス）
+
+- [payload](./.claude/skills/payload/SKILL.md) — Payload 全般のクイックリファレンス + `reference/` 詳細ドキュメント (Collections / Fields / Hooks / Access Control / Queries / Adapters 等)
+
 ### Skills（実装支援）
 
 - [add-payload-collection](./.claude/skills/add-payload-collection/SKILL.md) — Collection 追加時の必須要素（access 明示、`createdBy` hook 等）

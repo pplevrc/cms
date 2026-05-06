@@ -12,7 +12,7 @@
                  ▼                         ▼
         ┌──────────────────┐   ┌──────────────────────────┐
         │ Payload CMS      │ ◄ │ 本リポジトリ (public)       │
-        │ on Hosting plan  │   │  apps/cms (Payload)       │
+        │ on Hosting plan  │   │  app (Payload)            │
         │ <ADMIN_DOMAIN>   │   │  packages/cms-client      │
         └────────┬─────────┘   └──────────────┬───────────┘
                  │ 保存                       │ tag push
@@ -46,16 +46,15 @@
 
 ```
 <本リポジトリ>/
-├── apps/
-│   └── cms/                         # Payload + Next.js
-│       └── src/
-│           ├── app/(payload)/       # Payload routes
-│           ├── collections/         # Users, Members, Events, Posts, Media
-│           ├── globals/
-│           ├── access/              # 共通 access 関数
-│           ├── hooks/               # 共通 hooks (createdBy 等)
-│           ├── endpoints/           # custom endpoints (admin 用)
-│           └── payload.config.ts
+├── app/                             # Payload + Next.js (THE app)
+│   └── src/
+│       ├── app/(payload)/           # Payload routes
+│       ├── collections/             # Users, Members, Events, Posts, Media
+│       ├── globals/
+│       ├── access/                  # 共通 access 関数
+│       ├── hooks/                   # 共通 hooks (createdBy 等)
+│       ├── endpoints/               # custom endpoints (admin 用)
+│       └── payload.config.ts
 ├── packages/
 │   └── cms-client/                  # @<ORG>/cms-client
 │       └── src/
@@ -73,7 +72,7 @@
 
 ## 責務の境界
 
-### apps/cms
+### app
 
 - Payload の admin UI と REST API を提供
 - 認証・認可・DB スキーマ・storage adapter を持つ
@@ -111,7 +110,7 @@
 
 | シナリオ | 影響を受ける範囲 | 担保 |
 |---|---|---|
-| Payload → 別 CMS | `apps/cms` 全部 + `cms-client` の fetcher 内部 | Domain 型は不変、公開サイトは再デプロイ不要 |
+| Payload → 別 CMS | `app/` 全部 + `cms-client` の fetcher 内部 | Domain 型は不変、公開サイトは再デプロイ不要 |
 | DB ベンダー変更 | DB 接続文字列のみ | adapter で抽象化、connection string 差し替えのみ |
 | Storage ベンダー変更 | storage 設定のみ | S3 互換 interface で抽象化 |
 | ホスティング変更 | Dockerfile + env vars 移行 | Dockerfile を初期から同梱（検証用） |

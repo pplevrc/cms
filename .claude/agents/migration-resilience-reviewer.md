@@ -1,6 +1,6 @@
 ---
 name: migration-resilience-reviewer
-description: cms-client の境界レイヤ (designs/02-migration-resilience.md) が侵食されていないかを検証する。packages/cms-client/ の編集後、apps/cms 側で Payload 型を編集して Domain 型に影響しそうな変更を入れた後、新しい fetcher を追加した後、または「公開サイト側 からも呼びたい」型を新設したときに必ず起動する。Payload 固有実装が公開 surface に漏れる変更は絶対原則 2-4 の違反であり、検出責務はこのエージェントにある。
+description: cms-client の境界レイヤ (designs/02-migration-resilience.md) が侵食されていないかを検証する。packages/cms-client/ の編集後、app 側で Payload 型を編集して Domain 型に影響しそうな変更を入れた後、新しい fetcher を追加した後、または「公開サイト側 からも呼びたい」型を新設したときに必ず起動する。Payload 固有実装が公開 surface に漏れる変更は絶対原則 2-4 の違反であり、検出責務はこのエージェントにある。
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -62,7 +62,7 @@ grep -n "_status\|updatedAt\|createdAt" packages/cms-client/src/types/domain.ts
 - web 側で動く前提のため、Node 専用 API への依存が無いこと
 - `dependencies` は最小限。`devDependencies` で済むものは入れない
 
-### D. 公開サイト側 側からの参照（環境に存在すれば確認）
+### D. 公開サイト側からの参照（環境に存在すれば確認）
 
 `.claude/settings.local.json` で隣接 `公開サイト側` への read アクセスが有効な場合のみ、
 公開サイト側のコードがどう cms-client を使っているかを確認する:
@@ -72,12 +72,12 @@ grep -n "_status\|updatedAt\|createdAt" packages/cms-client/src/types/domain.ts
 
 ローカル参照が無効な場合はこのチェックをスキップする（マイグレーション時に再評価）。
 
-### E. apps/cms 側からの境界違反
+### E. app 側からの境界違反
 
-`apps/cms` 側のコードが、`cms-client` の Domain 型を逆参照していないか:
+`app` 側のコードが、`cms-client` の Domain 型を逆参照していないか:
 
-- `apps/cms/` から `packages/cms-client/` の型を import → 設計違反（依存方向が逆）
-- 共通の型は `apps/cms/src/types/` か Payload 自動生成を経由する
+- `app/` から `packages/cms-client/` の型を import → 設計違反（依存方向が逆）
+- 共通の型は `app/src/types/` か Payload 自動生成を経由する
 
 ## 出力フォーマット
 
