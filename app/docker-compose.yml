@@ -1,43 +1,39 @@
-version: '3'
+# ローカル開発用の PostgreSQL を立ち上げる Docker Compose 設定。
+#
+# このファイルは「Payload を動かすために必要な DB を、Docker で手早く用意する」目的のみ。
+# 本番 / 共有環境では managed Postgres を使う (../designs/01-architecture.md 参照)。
+#
+# 使い方:
+#   docker compose up -d postgres   # 起動 (バックグラウンド)
+#   docker compose ps               # 状態確認
+#   docker compose logs -f postgres # ログを追う
+#   docker compose down             # 停止 (データは保持)
+#   docker compose down -v          # 停止 + データ消去
+#
+# 起動後、.env に書く接続文字列:
+# secretlint-disable-next-line @secretlint/secretlint-rule-database-connection-string -- ローカル開発専用 credential。下部 environment と一致。本番値は managed Postgres 側で発行する。
+#   DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/cms
+#
+# user / password / dbname はこのファイル下部の environment と一致している必要がある。
+# 値はローカル開発専用 (commit 済み) — 本番値は managed Postgres 側で別途発行する。
 
 services:
-  payload:
-    image: node:20-alpine
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cms
     ports:
-      - '3000:3000'
+      - "127.0.0.1:5432:5432"
     volumes:
-      - .:/home/node/app
-      - node_modules:/home/node/app/node_modules
-    working_dir: /home/node/app/
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev"
-    depends_on:
-      - mongo
-      # - postgres
-    env_file:
-      - .env
-
-  # Ensure your DATABASE_URL uses 'mongo' as the hostname ie. mongodb://mongo/my-db-name
-  mongo:
-    image: mongo:latest
-    ports:
-      - '27017:27017'
-    command:
-      - --storageEngine=wiredTiger
-    volumes:
-      - data:/data/db
-    logging:
-      driver: none
-
-  # Uncomment the following to use postgres
-  # postgres:
-  #   restart: always
-  #   image: postgres:latest
-  #   volumes:
-  #     - pgdata:/var/lib/postgresql/data
-  #   ports:
-  #     - "5432:5432"
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cms"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
-  data:
-  # pgdata:
-  node_modules:
+  pgdata:
