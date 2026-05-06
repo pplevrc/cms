@@ -1,0 +1,19 @@
+{
+  "name": "cms-repo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "lefthook install",
+    "secretlint": "secretlint --maskSecrets '**/*'"
+  },
+  "devDependencies": {
+    "lefthook": "^2.1.6",
+    "secretlint": "^13.0.0",
+    "@secretlint/secretlint-rule-preset-recommend": "^13.0.0"
+  },
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=20"
+  }
+}

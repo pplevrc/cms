@@ -7,3 +7,9 @@ designs/private/
 .env
 .env.*
 !.env.example
+
+# 依存
+node_modules/
+
+# OS
+.DS_Store

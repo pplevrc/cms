@@ -1,0 +1,10 @@
+# lefthook 設定 — https://github.com/evilmartians/lefthook
+#
+# 現状: pre-commit で全ファイルに対して secretlint を実行
+# 将来: ステージ対象ファイルのみに絞る予定 (`run: pnpm exec secretlint --maskSecrets {staged_files}`)
+
+pre-commit:
+  parallel: true
+  commands:
+    secretlint:
+      run: pnpm exec secretlint --maskSecrets '**/*'
