@@ -32,7 +32,8 @@ Payload も例外ではない。3〜5 年後に別のスタックへ移る前提
 └─────────────────────────────────────┘
 ```
 
-公開サイト側から見て、Payload は**存在しない**。見えるのは `@<ORG>/cms-client` のみ。
+公開サイト側のコードは Payload を直接 `import` も `fetch` もしない。
+データ取得は常に `@<ORG>/cms-client` を経由する。
 これにより以下が成立する:
 
 - Payload 移行時、公開サイト側のソースは原則無変更
@@ -67,7 +68,7 @@ Payload も例外ではない。3〜5 年後に別のスタックへ移る前提
 - 公開サイトが扱いやすい形に成形した型
 - 例: Lexical JSON ではなく `bodyHtml: string`
 - 例: `relationship` は depth=0 で ID にせず、必要なフィールドだけ展開
-- Payload に存在する内部メタ（`_status`, `updatedAt` の細部等）を**意図的に削る**
+- Payload が内部管理用に持つメタフィールド（例: `_status` というドラフト状態フラグや、`updatedAt` の細部）は Domain 型に含めない
 
 ### 変換関数 (`src/fetchers/<entity>.ts`)
 
