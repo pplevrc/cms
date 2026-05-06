@@ -39,7 +39,7 @@ packages/cms-client/src/
 ### Step 2: Domain 型を先に決める（実装より重要）
 
 `src/types/domain.ts` に**公開サイトが扱いやすい形**で型を定義する。
-Payload の Raw 型をコピーして使うのではない。**設計判断**。
+Domain 型は公開サイトでの利用形に合わせて**再設計**する（Payload Raw 型の単純コピーでは公開サイトに Payload 依存が漏れるため）。
 
 ```typescript
 // src/types/domain.ts

@@ -19,8 +19,7 @@
 | 2 | MicroCMS（現状） | 無料枠制約で「全員編集」を諦める判断を強いられた |
 | 3 | Payload セルフホスト（本リポジトリ） | — |
 
-「過去経緯を知らない判断」は本プロジェクトでは無効である。
-迷ったら必ず Phase 1 / Phase 2 で何が壊れたかに立ち返って判断すること。
+判断に迷ったら必ず上記の Phase テーブルに立ち返り、Phase 1 / Phase 2 で何が壊れたかを照らし合わせる。
 
 ---
 
@@ -40,7 +39,7 @@
 
 - **個人アカウント依存禁止**（Phase 1 の教訓）
 - **単一サービス無料枠依存の最小化**（Phase 2 の教訓）
-- 1 人がボトルネックになる運用フロー（env vars 編集など）を残す場合、必ず代替手段を併設する
+- 1 人にしか実行できない運用フロー（env vars 編集など）には必ず代替手段を併設する
 
 **実装上の帰結**: secret rotation 手順 (`docs/RUNBOOK.md`) が無い実装は未完成。
 
@@ -51,9 +50,9 @@
 
 ### 2-4. 「次の移行」を前提に設計する
 
-- Payload も永遠ではない
+- Payload 自体もいずれ別スタックに置き換える前提で設計する
 - データレイヤを薄く保ち、別 CMS / DB / ホストへ乗り換え可能にする
-- これは整理整頓ではなく**構造的要件**。`packages/cms-client` が境界の物理的実装
+- `packages/cms-client` の存在は単なるコード整理ではなく、移行時の影響範囲を物理的に切るための**構造的要件**
 
 **実装上の帰結**: 公開サイト側から Payload 固有型・URL・挙動が見える設計はリジェクト対象。詳細は [designs/02-migration-resilience.md](./designs/02-migration-resilience.md)。
 
@@ -148,15 +147,26 @@ AI が read-only で参照できる場合がある（`.claude/settings.local.jso
 
 `.claude/` 配下に以下を配置している。該当タスクで活用すること。
 
-### Agents（レビュー用）
+### Agents（レビュー / ループ実行）
 
 - [security-reviewer](./.claude/agents/security-reviewer.md) — §4 の遵守事項 + 公開リポ脅威モデルに対する自動レビュー
 - [migration-resilience-reviewer](./.claude/agents/migration-resilience-reviewer.md) — `cms-client` 境界レイヤの侵食を検出
+- [loop-reviewer](./.claude/agents/loop-reviewer.md) — find-contradiction → fix → commit を最大 5 ラウンド回す
+
+### Skills（Payload リファレンス）
+
+- [payload](./.claude/skills/payload/SKILL.md) — Payload 全般のクイックリファレンス + `reference/` 詳細ドキュメント (Collections / Fields / Hooks / Access Control / Queries / Adapters 等)
 
 ### Skills（実装支援）
 
 - [add-payload-collection](./.claude/skills/add-payload-collection/SKILL.md) — Collection 追加時の必須要素（access 明示、`createdBy` hook 等）
 - [add-cms-client-fetcher](./.claude/skills/add-cms-client-fetcher/SKILL.md) — fetcher 追加時の Raw→Domain 変換規約
+
+### Skills（ドキュメント品質）
+
+- [doc-context-free](./.claude/skills/doc-context-free/SKILL.md) — 設計ドキュメントから文脈依存表現（履歴・差分・否定形）を排除
+- [find-contradiction](./.claude/skills/find-contradiction/SKILL.md) — ドキュメント間の矛盾・命名揺れ・broken link を検出
+- [write-self-contained-comments](./.claude/skills/write-self-contained-comments/SKILL.md) — コメント・ドキュメントが外部参照（PR/Issue 番号等）に依存しないよう強制
 
 ---
 
