@@ -11,7 +11,6 @@ concurrency:
 
 env:
   NODE_VERSION: 22
-  PNPM_VERSION: 10.32.1
 
 jobs:
   typecheck:
@@ -19,9 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -34,9 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -49,9 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -82,9 +75,7 @@ jobs:
       PAYLOAD_SECRET: ci-runner-only-secret-not-used-anywhere-else
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -115,9 +106,7 @@ jobs:
       PAYLOAD_SECRET: ci-runner-only-secret-not-used-anywhere-else
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
