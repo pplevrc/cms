@@ -148,15 +148,22 @@ AI が read-only で参照できる場合がある（`.claude/settings.local.jso
 
 `.claude/` 配下に以下を配置している。該当タスクで活用すること。
 
-### Agents（レビュー用）
+### Agents（レビュー / ループ実行）
 
 - [security-reviewer](./.claude/agents/security-reviewer.md) — §4 の遵守事項 + 公開リポ脅威モデルに対する自動レビュー
 - [migration-resilience-reviewer](./.claude/agents/migration-resilience-reviewer.md) — `cms-client` 境界レイヤの侵食を検出
+- [loop-reviewer](./.claude/agents/loop-reviewer.md) — find-contradiction → fix → commit を最大 5 ラウンド回す
 
 ### Skills（実装支援）
 
 - [add-payload-collection](./.claude/skills/add-payload-collection/SKILL.md) — Collection 追加時の必須要素（access 明示、`createdBy` hook 等）
 - [add-cms-client-fetcher](./.claude/skills/add-cms-client-fetcher/SKILL.md) — fetcher 追加時の Raw→Domain 変換規約
+
+### Skills（ドキュメント品質）
+
+- [doc-context-free](./.claude/skills/doc-context-free/SKILL.md) — 設計ドキュメントから文脈依存表現（履歴・差分・否定形）を排除
+- [find-contradiction](./.claude/skills/find-contradiction/SKILL.md) — ドキュメント間の矛盾・命名揺れ・broken link を検出
+- [write-self-contained-comments](./.claude/skills/write-self-contained-comments/SKILL.md) — コメント・ドキュメントが外部参照（PR/Issue 番号等）に依存しないよう強制
 
 ---
 
