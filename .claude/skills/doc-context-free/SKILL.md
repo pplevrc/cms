@@ -1,6 +1,6 @@
 ---
 name: doc-context-free
-description: Review design documents for context-dependent language and rewrite to be self-contained. Invoke when editing design docs, or when walking back a change after being told the phrasing assumes prior context.
+description: Use this skill to scan prose intended for other readers for context-dependent language and rewrite passages to state facts directly. The trigger is the act of authoring or editing prose for an audience, independent of surface — the patterns this skill detects (negation of unstated alternatives, delta framing such as "added X" / "changed from X to Y", session or conversation references, defensive explanations without context) appear wherever prose lives. Invoke when authoring or editing such prose, or when walking back a change after being told the phrasing assumes prior context.
 ---
 
 # doc-context-free

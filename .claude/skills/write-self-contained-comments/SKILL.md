@@ -1,6 +1,6 @@
 ---
 name: write-self-contained-comments
-description: Use this skill when writing or editing comments in code (//, /* */, #, """) or technical documentation (Markdown design docs, README, CHANGELOG). Enforces self-contained writing — comments must make sense without external context such as other PRs, Issues, or conversation history. Triggers on "コメント書く", "ドキュメントを書く", "comment writing", "design doc 執筆", and applies during any code/doc edit that includes commentary or prose.
+description: Use this skill whenever you write or edit prose another reader will consume. The trigger is the act of writing prose for an audience, independent of surface (the rule applies to any place prose can live, not just specific file extensions). Enforces self-contained writing — the text must stand alone without relying on context the reader cannot recover, including one-time review-run artifacts, session / conversation history, transient task state, and "delta" phrasing that assumes the reader knows the prior state. Also forbids citing meta / AI-guidance documents (e.g. CLAUDE.md sections, agent prompts) as task rationale; ground the rationale in the underlying domain failure mode or user impact, not in the document that encoded a prior decision. Cross-link refs that the platform itself tracks as stable anchors (`Closes #N`, "follows PR #M", repo-relative paths) are accepted. Triggers on any prose-writing intent, in any language.
 ---
 
 # write-self-contained-comments
@@ -14,8 +14,8 @@ Code comments and technical documentation must be readable in isolation. The rea
 | Code comments (`//`, `/* */`, `#`, `"""`, JSDoc) | Yes |
 | Markdown technical docs (`designs/**.md`, `docs/**.md`, README, CHANGELOG, etc.) | Yes |
 | `CLAUDE.md`, `SECURITY.md`, `.claude/agents/**`, `.claude/skills/**` | Yes |
-| **PR descriptions and commit messages** | No — Issue references are conventional and expected here |
-| **Linear / GitHub Issue bodies** | No — use the platform's native cross-link mechanism |
+| **PR descriptions and commit messages** | Partial — Issue / PR cross-link refs (`Closes #N`, "follows PR #M") are accepted because they anchor a stable fact, but ephemeral context (review-run scores, conversation snippets) and meta-doc citations as rationale are still disallowed |
+| **GitHub / Linear Issue bodies** | Yes — same rules apply; only the cross-link mechanic (referencing other Issues / PRs by number to anchor a stable fact) is exempt because the platform tracks it. Ephemeral context, delta framing, and meta-doc citations as rationale are still disallowed |
 
 ## Required rules
 
