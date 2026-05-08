@@ -10,7 +10,7 @@ New PRs are created **with `--draft`** and only transitioned to ready *after* lo
 ## Core rule
 
 - `gh pr create` must always include `--draft`.
-- Mark the PR ready (`gh pr ready <N>`) only after the local pre-merge review loop completes with no outstanding actionable findings (skill: `run-local-code-review-before-marking-ready`).
+- Mark the PR ready (`gh pr ready <N>`) only after a local pre-merge review (e.g. `/code-review:code-review`, `/coderabbit:review`) completes with no outstanding actionable findings.
 
 ## Why
 
@@ -20,7 +20,7 @@ GitHub-side reviewers (notably CodeRabbit) fire automatically when a PR enters `
 
 1. Push branch to origin.
 2. `gh pr create --draft --title "..." --body "..."` — include the conventional body sections (Summary / Changes / Test, plus `Closes #N` where applicable).
-3. Run the local pre-merge review loop (skill: `run-local-code-review-before-marking-ready`).
+3. Run a local pre-merge review (e.g. `/code-review:code-review` and / or `/coderabbit:review`).
 4. Address any actionable findings, push follow-up commits.
 5. Once local review returns no actionable findings, `gh pr ready <N>`.
 6. Hand off to the user for merge (skill: `defer-pr-merge-to-user`).
