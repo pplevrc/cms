@@ -5,11 +5,11 @@ description: Use this skill to scan prose intended for other readers for context
 
 # doc-context-free
 
-Review design documents for language that only makes sense to a reader who knows the history of changes. Rewrite offending passages to state facts directly.
+Review prose intended for other readers for language that only makes sense to a reader who knows the history of changes. Rewrite offending passages to state facts directly.
 
 ## Principle
 
-Design documents describe **the current state of the system**. The history of how decisions were reached — what changed, what was moved, what was added — belongs in commit messages and PR descriptions, not in the spec.
+Such prose describes **the current state of its subject**. The history of how decisions were reached — what changed, what was moved, what was added — belongs in commit messages and PR descriptions, not in the prose itself.
 
 ## Patterns to detect and fix
 
