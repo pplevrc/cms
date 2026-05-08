@@ -114,7 +114,7 @@ CHANGELOG だけは**履歴を記録するための文書**なので例外。た
 コメント・ドキュメントを編集した後に走らせる:
 
 - [ ] すべてのコメントが non-obvious WHY を説明している（そうでないコメントは削除）
-- [ ] `grep -nE '\b[A-Z][A-Z0-9]+-[0-9]+\b|PR #[0-9]+|Issue #[0-9]+'` の結果が TODO / FIXME 行のみ（CHANGELOG / Issue 本体ファイルは対象外）
+- [ ] `grep -nE '\b[A-Z][A-Z0-9]+-[0-9]+\b|PR #[0-9]+|Issue #[0-9]+'` の結果が TODO / FIXME 行のみ（CHANGELOG / PR 本文 / Issue 本体は cross-link refs 許容のためこの grep の対象外）
 - [ ] "in this change", "previously", "the old", "this fixes" のような時制依存表現が無い
 - [ ] In-repo 参照は relative path (`designs/...`, `packages/...`, `docs/...`) を使用
 - [ ] PR や対話履歴を見ていない読者でも、コメント単体で行動できる
