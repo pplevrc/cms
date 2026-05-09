@@ -56,29 +56,30 @@ DEFAULT_DB_URL='postgres://postgres:postgres@127.0.0.1:5432/cms'
 # would leak via /proc/<pid>/cmdline and casual `ps -ef` on a multi-user host).
 # The values are passed via the awk process's environment instead, which has
 # stricter default visibility.
+#
+# The END block enforces that BOTH placeholder keys actually matched and got
+# substituted. If app/.env.example is ever changed so a key carries a non-empty
+# default (e.g. `PAYLOAD_SECRET=changeme`), the regex no longer matches, the
+# corresponding flag stays unset, and awk exits non-zero. The cleanup_on_error
+# trap then removes the half-written .env so re-runs work cleanly.
 PAYLOAD_SECRET="$PAYLOAD_SECRET" \
 DEFAULT_DB_URL="$DEFAULT_DB_URL" \
 awk '
-  /^PAYLOAD_SECRET=$/ { sub(/=$/, "=" ENVIRON["PAYLOAD_SECRET"]) }
-  /^DATABASE_URL=$/   { sub(/=$/, "=" ENVIRON["DEFAULT_DB_URL"]) }
+  /^PAYLOAD_SECRET=$/ { sub(/=$/, "=" ENVIRON["PAYLOAD_SECRET"]); secret_set=1 }
+  /^DATABASE_URL=$/   { sub(/=$/, "=" ENVIRON["DEFAULT_DB_URL"]); db_set=1 }
   { print }
+  END {
+    if (!secret_set) {
+      print "Failed to substitute PAYLOAD_SECRET — app/.env.example may have a non-empty default for PAYLOAD_SECRET=." > "/dev/stderr"
+      exit 1
+    }
+    if (!db_set) {
+      print "Failed to substitute DATABASE_URL — app/.env.example may have a non-empty default for DATABASE_URL=." > "/dev/stderr"
+      exit 1
+    }
+  }
 ' "$ENV_FILE" > "$ENV_FILE.tmp"
 mv "$ENV_FILE.tmp" "$ENV_FILE"
-
-# Verify substitutions actually filled the placeholders. If app/.env.example
-# is ever changed so the keys carry a non-empty default (e.g.
-# `PAYLOAD_SECRET=changeme`), the awk regex above silently no-ops — fail loud
-# rather than ship an .env that lacks the generated values.
-if ! grep -q '^PAYLOAD_SECRET=.\+$' "$ENV_FILE"; then
-  echo "Failed to set PAYLOAD_SECRET in $ENV_FILE." >&2
-  echo "Check whether app/.env.example still has 'PAYLOAD_SECRET=' on its own line with no default value." >&2
-  exit 1
-fi
-if ! grep -q '^DATABASE_URL=.\+$' "$ENV_FILE"; then
-  echo "Failed to set DATABASE_URL in $ENV_FILE." >&2
-  echo "Check whether app/.env.example still has 'DATABASE_URL=' on its own line with no default value." >&2
-  exit 1
-fi
 
 echo "Generated $ENV_FILE." >&2
 echo "Review the file before running 'pnpm dev' or 'make dev'." >&2
