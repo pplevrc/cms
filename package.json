@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "prepare": "lefthook install",
+    "setup-env": "bash scripts/setup-env.sh",
+    "bootstrap": "pnpm setup-env && pnpm install --frozen-lockfile",
     "secretlint": "secretlint --maskSecrets '**/*'",
     "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
     "lint": "pnpm -r --workspace-concurrency=1 run lint",
