@@ -72,7 +72,7 @@ jobs:
     env:
       # secretlint-disable-next-line @secretlint/secretlint-rule-database-connection-string -- CI のサービスコンテナ用 credential。GitHub Actions runner ローカルにのみ存在し、外部から到達不能。
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/cms
-      PAYLOAD_SECRET: ci-runner-only-secret-not-used-anywhere-else
+      PAYLOAD_SECRET: ${{ secrets.CI_PAYLOAD_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable
