@@ -6,11 +6,12 @@ import type { User } from '@/payload-types'
 
 let payload: Payload
 
-// All integration specs share a single Payload init via this top-level
-// `beforeAll`. Splitting into multiple `*.int.spec.ts` files causes
-// Payload's `pushDevSchema` to attempt a second CREATE TABLE round on
-// the same database in subsequent specs, which fails with
-// "relation already exists" — see commit history for the consolidation.
+// 全ての integration spec を本ファイルに集約し、top-level の `beforeAll` で
+// Payload を 1 度だけ初期化する。spec ファイルを複数に分けると 2 つ目以降の
+// `getPayload` で `pushDevSchema` が同一 DB に対して再度 CREATE TABLE を
+// 投げ、`relation "X" already exists` で落ちるため。`vitest` の `singleFork +
+// isolate: false` でも spec ファイル間のモジュール再評価により Payload
+// シングルトンが共有されないので、ここに統合する以外に確実な方法が無い。
 beforeAll(async () => {
   const payloadConfig = await config
   payload = await getPayload({ config: payloadConfig })
@@ -30,7 +31,7 @@ describe('Users collection access control', () => {
   let nonAdmin: User
 
   beforeAll(async () => {
-    // Clean prior fixtures so the suite is repeatable
+    // 前回実行のフィクスチャを削除して suite を冪等に保つ
     await payload.delete({
       collection: 'users',
       where: {
@@ -79,8 +80,8 @@ describe('Users collection access control', () => {
   })
 
   it('non-admin (editor) cannot escalate their own role to admin', async () => {
-    // Payload's field-level access silently drops disallowed writes rather than rejecting
-    // the whole operation, so the update succeeds but the value stays unchanged.
+    // Payload の field-level access は disallowed な write を silent drop する仕様 (operation
+    // 自体は成功する) のため、update が resolve しても値は変化しないことを assert する。
     const updated = await payload.update({
       collection: 'users',
       id: nonAdmin.id,
@@ -118,8 +119,8 @@ describe('Users collection access control', () => {
   })
 
   it('non-admin cannot read another user by id', async () => {
-    // Row-level constraint `{ id: { equals: user.id } }` narrows the result set; reading
-    // a different user's id falls outside the constraint and Payload reports not-found.
+    // 行レベル制約 `{ id: { equals: user.id } }` で結果セットが絞られるため、他ユーザーの
+    // id を直接指定すると制約外となり Payload は not-found として reject する。
     await expect(
       payload.findByID({
         collection: 'users',
@@ -131,8 +132,8 @@ describe('Users collection access control', () => {
   })
 
   it('non-admin cannot update another user by id', async () => {
-    // Same row-level constraint applies on update; the target row falls outside the
-    // non-admin's permitted set and Payload rejects rather than silently no-op-ing.
+    // 同じ行レベル制約が update にも効く。対象行が非 admin の許可セット外のため、
+    // silent no-op ではなく明示的に reject する。
     await expect(
       payload.update({
         collection: 'users',
