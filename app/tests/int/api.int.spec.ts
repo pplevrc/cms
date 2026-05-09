@@ -145,3 +145,46 @@ describe('Users collection access control', () => {
     ).rejects.toBeTruthy()
   })
 })
+
+describe('Users login lockout', () => {
+  const lockoutEmail = 'lockout-test@test.local'
+  const correctPassword = 'correctPassword123'
+  const wrongPassword = 'wrongPassword123'
+
+  beforeAll(async () => {
+    // 前回実行のフィクスチャを削除して suite を冪等に保つ。
+    await payload.delete({
+      collection: 'users',
+      where: { email: { equals: lockoutEmail } },
+    })
+
+    await payload.create({
+      collection: 'users',
+      data: { email: lockoutEmail, password: correctPassword, role: 'editor' },
+    })
+  })
+
+  it('locks user after maxLoginAttempts consecutive failed logins', async () => {
+    // CI と setup-env.sh の default は 5。万一 env 未設定でも安全側に倒すため fallback を 5 に。
+    const maxAttempts = Number(process.env.AUTH_MAX_LOGIN_ATTEMPTS ?? '5')
+
+    // maxAttempts 回続けて誤った password でログイン試行。Payload は失敗のたびに
+    // loginAttempts を increment し、threshold に到達した時点で lockUntil を立てる。
+    for (let i = 0; i < maxAttempts; i++) {
+      await expect(
+        payload.login({
+          collection: 'users',
+          data: { email: lockoutEmail, password: wrongPassword },
+        }),
+      ).rejects.toBeTruthy()
+    }
+
+    // 次の試行は (たとえ正しい password でも) lockUntil が有効な間 reject される。
+    await expect(
+      payload.login({
+        collection: 'users',
+        data: { email: lockoutEmail, password: correctPassword },
+      }),
+    ).rejects.toBeTruthy()
+  })
+})

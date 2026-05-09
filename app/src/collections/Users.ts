@@ -2,13 +2,27 @@ import type { CollectionConfig } from 'payload'
 
 import { isAdmin } from '../access/isAdmin'
 import { isOwnerOrAdmin } from '../access/isOwnerOrAdmin'
+import { requireEnv } from '../lib/env'
 
 export const Users: CollectionConfig = {
   slug: 'users',
   admin: {
     useAsTitle: 'email',
   },
-  auth: true,
+  auth: {
+    // ブルートフォース対策。値の根拠は designs/private/auth-parameters.md。
+    maxLoginAttempts: Number(requireEnv('AUTH_MAX_LOGIN_ATTEMPTS')),
+    lockTime: Number(requireEnv('AUTH_LOCK_TIME_MS')),
+    cookies: {
+      // 本番 (HTTPS 前提) では secure cookie 必須。dev は http://localhost で動かすため
+      // production 限定で secure: true にし、それ以外は false に倒す。
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'Strict',
+      // COOKIE_DOMAIN は本番ドメイン用 (例: .example.com)。未設定なら
+      // host-only cookie として発行される (Payload デフォルト挙動)。
+      domain: process.env.COOKIE_DOMAIN || undefined,
+    },
+  },
   access: {
     create: isAdmin,
     read: isOwnerOrAdmin,
