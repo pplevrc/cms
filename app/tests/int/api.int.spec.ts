@@ -43,7 +43,7 @@ describe('Users collection access control', () => {
       data: {
         email: 'admin-access@test.local',
         password: 'test12345',
-        isAdmin: true,
+        role: 'admin',
       },
     })
 
@@ -52,7 +52,7 @@ describe('Users collection access control', () => {
       data: {
         email: 'user-access@test.local',
         password: 'test12345',
-        isAdmin: false,
+        role: 'editor',
       },
     })
   })
@@ -78,17 +78,17 @@ describe('Users collection access control', () => {
     expect(result.docs[0]?.id).toBe(nonAdmin.id)
   })
 
-  it('non-admin cannot escalate isAdmin to true on their own record', async () => {
+  it('non-admin (editor) cannot escalate their own role to admin', async () => {
     // Payload's field-level access silently drops disallowed writes rather than rejecting
     // the whole operation, so the update succeeds but the value stays unchanged.
     const updated = await payload.update({
       collection: 'users',
       id: nonAdmin.id,
-      data: { isAdmin: true },
+      data: { role: 'admin' },
       user: nonAdmin,
       overrideAccess: false,
     })
-    expect(updated.isAdmin).toBe(false)
+    expect(updated.role).toBe('editor')
   })
 
   it('non-admin cannot create new users', async () => {
@@ -98,6 +98,7 @@ describe('Users collection access control', () => {
         data: {
           email: 'should-fail@test.local',
           password: 'test12345',
+          role: 'editor',
         },
         user: nonAdmin,
         overrideAccess: false,

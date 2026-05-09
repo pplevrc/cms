@@ -17,15 +17,21 @@ export const Users: CollectionConfig = {
   },
   fields: [
     {
-      name: 'isAdmin',
-      type: 'checkbox',
-      defaultValue: false,
+      name: 'role',
+      type: 'select',
+      options: [
+        { label: '管理者 (admin)', value: 'admin' },
+        { label: 'モデレータ (moderator)', value: 'moderator' },
+        { label: '編集者 (editor)', value: 'editor' },
+      ],
+      defaultValue: 'editor',
+      required: true,
       access: {
-        update: ({ req: { user } }) => Boolean(user?.isAdmin),
+        update: ({ req: { user } }) => user?.role === 'admin',
       },
       admin: {
         description:
-          '他ユーザーを管理する権限を付与する (作成・全件参照・全件更新・削除)。本フィールドの変更は既存の admin のみ可能。',
+          'ユーザー権限。admin = ユーザー管理および全管理操作、moderator = 全コンテンツの作成 / 編集 / 削除、editor = 自分の作成エントリのみ更新。本フィールドの変更は admin のみ可能。',
       },
     },
   ],
