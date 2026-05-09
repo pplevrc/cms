@@ -3,14 +3,18 @@ name: CI — e2e
 # e2e は時間がかかるため、PR では `e2e` label が付いた場合のみ実行する。
 # main への push は最終 safety net として常時実行。
 #
-# `on.pull_request.types` に `labeled` を含めることで、PR 作成後に label を後付けしても
-# workflow が再評価される。`opened` / `synchronize` / `reopened` は通常の PR ライフサイクル
-# (作成 / 新コミット push / 再オープン) を拾うため。それぞれの発火に対し job-level `if:` で
-# label 有無をフィルタする。
+# 動作:
+# - `on.pull_request.types: [opened, synchronize, reopened, labeled]` で PR ライフサイクル
+#   全般 (作成 / 新コミット / 再オープン / label 後付け) で workflow が起動する
+# - 起動した workflow 内の test-e2e job は `if:` で `e2e` label の有無をフィルタする
+# - label 無し PR では job が SKIPPED として check status に現れる (workflow 自体が起動
+#   しないわけではない)。GitHub の required status check は SKIPPED を success として
+#   扱うため、required に含めるかどうかは運用設計の話 (`docs/RUNBOOK.md` 参照)
 #
-# 「label が無い PR」では本 workflow に該当する job が起動しない (job-level `if:` が
-# 評価されて skipped になることもない) ため、branch protection の required status check
-# 上にも現れず、Skipped 扱いの解釈問題を回避できる。
+# 単一 ci.yml 内に job として置くより別 workflow に分離する利点は、e2e 系の trigger 制御
+# (例: `pull_request.types: [labeled]` を使った後付け label への反応) を default 系 job
+# (typecheck/lint/secretlint/test:int) のトリガと混在させずに済むこと、および将来 e2e
+# shard / nightly e2e 等を追加するときに本 file 内で完結させられること。
 
 on:
   pull_request:
