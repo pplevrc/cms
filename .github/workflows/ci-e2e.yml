@@ -1,0 +1,61 @@
+name: CI — e2e
+
+# e2e は時間がかかるため、PR では `e2e` label が付いた場合のみ実行する。
+# main への push は最終 safety net として常時実行。
+#
+# `on.pull_request.types` に `labeled` を含めることで、PR 作成後に label を後付けしても
+# workflow が再評価される。`opened` / `synchronize` / `reopened` は通常の PR ライフサイクル
+# (作成 / 新コミット push / 再オープン) を拾うため。それぞれの発火に対し job-level `if:` で
+# label 有無をフィルタする。
+#
+# 「label が無い PR」では本 workflow に該当する job が起動しない (job-level `if:` が
+# 評価されて skipped になることもない) ため、branch protection の required status check
+# 上にも現れず、Skipped 扱いの解釈問題を回避できる。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  test-e2e:
+    name: test:e2e
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'e2e')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # secretlint-disable-next-line @secretlint/secretlint-rule-database-connection-string -- CI のサービスコンテナ用 credential。GitHub Actions runner ローカルにのみ存在し、外部から到達不能。
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/cms
+      PAYLOAD_SECRET: ci-runner-only-secret-not-used-anywhere-else
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: pnpm --filter cms exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
