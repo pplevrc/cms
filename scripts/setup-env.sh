@@ -8,7 +8,7 @@
 #   DATABASE_URL:   docker-compose default (matches app/docker-compose.yml)
 #
 # Other env vars stay empty in app/.env; the user fills them in as features
-# get added (Storage / Mail / Auth params 等)。
+# get added (Storage / Mail / Auth params 等).
 
 set -euo pipefail
 
@@ -32,6 +32,18 @@ if ! command -v openssl >/dev/null 2>&1; then
   exit 1
 fi
 
+# Clean up the partially-written .env (and any awk-staged tmp files) if any
+# step after `cp` fails. Without this, a half-written app/.env would block
+# re-runs because of the existence guard above without any hint of what went
+# wrong.
+cleanup_on_error() {
+  local rc=$?
+  if [ $rc -ne 0 ]; then
+    rm -f "$ENV_FILE" "$ENV_FILE.tmp"
+  fi
+}
+trap cleanup_on_error EXIT
+
 cp "$EXAMPLE_FILE" "$ENV_FILE"
 
 PAYLOAD_SECRET=$(openssl rand -base64 32 | tr -d '\n')
@@ -39,17 +51,34 @@ PAYLOAD_SECRET=$(openssl rand -base64 32 | tr -d '\n')
 # secretlint-disable-next-line @secretlint/secretlint-rule-database-connection-string -- ローカル docker-compose default; matches app/docker-compose.yml environment.
 DEFAULT_DB_URL='postgres://postgres:postgres@127.0.0.1:5432/cms'
 
-# `sed -i` has BSD / GNU differences. Use `-i.bak` and remove the backup
-# afterwards so the script is portable across both.
-sed -i.bak \
-  -e "s|^PAYLOAD_SECRET=\$|PAYLOAD_SECRET=${PAYLOAD_SECRET}|" \
-  -e "s|^DATABASE_URL=\$|DATABASE_URL=${DEFAULT_DB_URL}|" \
-  "$ENV_FILE"
+# Use awk with ENVIRON[] rather than sed with shell-interpolated argv so that
+# the generated PAYLOAD_SECRET does not appear in any process's argv (which
+# would leak via /proc/<pid>/cmdline and casual `ps -ef` on a multi-user host).
+# The values are passed via the awk process's environment instead, which has
+# stricter default visibility.
+PAYLOAD_SECRET="$PAYLOAD_SECRET" \
+DEFAULT_DB_URL="$DEFAULT_DB_URL" \
+awk '
+  /^PAYLOAD_SECRET=$/ { sub(/=$/, "=" ENVIRON["PAYLOAD_SECRET"]) }
+  /^DATABASE_URL=$/   { sub(/=$/, "=" ENVIRON["DEFAULT_DB_URL"]) }
+  { print }
+' "$ENV_FILE" > "$ENV_FILE.tmp"
+mv "$ENV_FILE.tmp" "$ENV_FILE"
 
-rm -f "${ENV_FILE}.bak"
-
-# Clear the secret from this script process's environment.
-unset PAYLOAD_SECRET
+# Verify substitutions actually filled the placeholders. If app/.env.example
+# is ever changed so the keys carry a non-empty default (e.g.
+# `PAYLOAD_SECRET=changeme`), the awk regex above silently no-ops — fail loud
+# rather than ship an .env that lacks the generated values.
+if ! grep -q '^PAYLOAD_SECRET=.\+$' "$ENV_FILE"; then
+  echo "Failed to set PAYLOAD_SECRET in $ENV_FILE." >&2
+  echo "Check whether app/.env.example still has 'PAYLOAD_SECRET=' on its own line with no default value." >&2
+  exit 1
+fi
+if ! grep -q '^DATABASE_URL=.\+$' "$ENV_FILE"; then
+  echo "Failed to set DATABASE_URL in $ENV_FILE." >&2
+  echo "Check whether app/.env.example still has 'DATABASE_URL=' on its own line with no default value." >&2
+  exit 1
+fi
 
 echo "Generated $ENV_FILE." >&2
 echo "Review the file before running 'pnpm dev' or 'make dev'." >&2

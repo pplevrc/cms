@@ -10,7 +10,7 @@ export function requireEnv(name: string): string {
   const value = process.env[name]
   if (value === undefined || value === '') {
     throw new Error(
-      `環境変数 ${name} が設定されていません。app/.env を確認するか、リポジトリルートで \`make setup\` を実行してください。`,
+      `環境変数 ${name} が設定されていません。ローカル環境では app/.env (リポジトリルートで \`make setup\` で生成可) を、CI 環境では GitHub Actions Secrets を、本番環境ではホスティング側 env vars を確認してください。`,
     )
   }
   return value

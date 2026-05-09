@@ -3,6 +3,8 @@
 #
 # Detailed dev setup is documented in app/README.md.
 
+.DEFAULT_GOAL := help
+
 .PHONY: help setup setup-env dev typecheck lint secretlint test
 
 help:
