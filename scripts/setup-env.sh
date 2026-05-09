@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 #
-# Bootstrap app/.env from app/.env.example with locally-generated values.
-# Idempotent — does not overwrite an existing app/.env.
+# app/.env をローカル開発用に bootstrap する。app/.env.example を起点に、
+# `PAYLOAD_SECRET` と `DATABASE_URL` だけ自動生成 / 既定値で埋めて書き出す。
+# 既存の app/.env は絶対に上書きしない (idempotent)。
 #
-# Generated values:
-#   PAYLOAD_SECRET: 32 bytes via openssl rand -base64 32
-#   DATABASE_URL:   docker-compose default (matches app/docker-compose.yml)
+# 自動で埋める値:
+#   PAYLOAD_SECRET: openssl rand -base64 32 で生成した 32 bytes ランダム値
+#   DATABASE_URL:   docker-compose のデフォルト接続文字列
+#                   (app/docker-compose.yml の environment と一致させる)
 #
-# Other env vars stay empty in app/.env; the user fills them in as features
-# get added (Storage / Mail / Auth params 等).
+# 他の env vars は app/.env.example の空のまま残す。Storage / Mail / Auth
+# パラメータ等は機能を追加するタイミングで利用者が手で埋める想定。
 
 set -euo pipefail
 
@@ -17,25 +19,25 @@ ENV_FILE="$ROOT_DIR/app/.env"
 EXAMPLE_FILE="$ROOT_DIR/app/.env.example"
 
 if [ -f "$ENV_FILE" ]; then
-  echo "app/.env already exists; not overwriting." >&2
-  echo "Remove app/.env and re-run 'make setup' to regenerate." >&2
+  echo "app/.env が既に存在するため上書きしません。" >&2
+  echo "再生成したい場合は app/.env を削除してから 'pnpm bootstrap' を再実行してください。" >&2
   exit 0
 fi
 
 if [ ! -f "$EXAMPLE_FILE" ]; then
-  echo "app/.env.example missing; cannot bootstrap." >&2
+  echo "app/.env.example が見つからないため bootstrap できません。" >&2
   exit 1
 fi
 
 if ! command -v openssl >/dev/null 2>&1; then
-  echo "openssl is required to generate PAYLOAD_SECRET; install it first." >&2
+  echo "PAYLOAD_SECRET の生成に openssl が必要です。先にインストールしてください。" >&2
   exit 1
 fi
 
-# Clean up the partially-written .env (and any awk-staged tmp files) if any
-# step after `cp` fails. Without this, a half-written app/.env would block
-# re-runs because of the existence guard above without any hint of what went
-# wrong.
+# 部分失敗時の cleanup。`cp` 成功後に awk 等が失敗すると半端な app/.env
+# (PAYLOAD_SECRET= が空のまま) が残り、existence guard に引っかかって
+# 再実行時に user が迷子になる。EXIT trap で非 0 終了時のみ ENV_FILE と
+# .tmp を削除する。
 cleanup_on_error() {
   local rc=$?
   if [ $rc -ne 0 ]; then
@@ -51,17 +53,16 @@ PAYLOAD_SECRET=$(openssl rand -base64 32 | tr -d '\n')
 # secretlint-disable-next-line @secretlint/secretlint-rule-database-connection-string -- ローカル docker-compose default; matches app/docker-compose.yml environment.
 DEFAULT_DB_URL='postgres://postgres:postgres@127.0.0.1:5432/cms'
 
-# Use awk with ENVIRON[] rather than sed with shell-interpolated argv so that
-# the generated PAYLOAD_SECRET does not appear in any process's argv (which
-# would leak via /proc/<pid>/cmdline and casual `ps -ef` on a multi-user host).
-# The values are passed via the awk process's environment instead, which has
-# stricter default visibility.
+# sed の shell 展開された argv に PAYLOAD_SECRET の生成値が乗ると、
+# /proc/<pid>/cmdline や多人数ホストでの `ps -ef` から一瞬読める状態が
+# 発生する。それを避けるため awk + ENVIRON[] 経由で env vars 経路を使い、
+# 値そのものは argv に乗らないようにする。
 #
-# The END block enforces that BOTH placeholder keys actually matched and got
-# substituted. If app/.env.example is ever changed so a key carries a non-empty
-# default (e.g. `PAYLOAD_SECRET=changeme`), the regex no longer matches, the
-# corresponding flag stays unset, and awk exits non-zero. The cleanup_on_error
-# trap then removes the half-written .env so re-runs work cleanly.
+# END block で `secret_set` / `db_set` フラグをチェックし、両方の置換が
+# 実際に発火したことを確認する。app/.env.example の対応キーが空 default
+# でなくなった場合 (例: `PAYLOAD_SECRET=changeme`) は regex が match せず
+# フラグ未設定 → awk が exit 1 → cleanup_on_error trap が走って半端な
+# .env が残らない、という流れで fail loud にする。
 PAYLOAD_SECRET="$PAYLOAD_SECRET" \
 DEFAULT_DB_URL="$DEFAULT_DB_URL" \
 awk '
@@ -70,16 +71,16 @@ awk '
   { print }
   END {
     if (!secret_set) {
-      print "Failed to substitute PAYLOAD_SECRET — app/.env.example may have a non-empty default for PAYLOAD_SECRET=." > "/dev/stderr"
+      print "PAYLOAD_SECRET の置換に失敗しました。app/.env.example の PAYLOAD_SECRET= に default 値が入っていないか確認してください。" > "/dev/stderr"
       exit 1
     }
     if (!db_set) {
-      print "Failed to substitute DATABASE_URL — app/.env.example may have a non-empty default for DATABASE_URL=." > "/dev/stderr"
+      print "DATABASE_URL の置換に失敗しました。app/.env.example の DATABASE_URL= に default 値が入っていないか確認してください。" > "/dev/stderr"
       exit 1
     }
   }
 ' "$ENV_FILE" > "$ENV_FILE.tmp"
 mv "$ENV_FILE.tmp" "$ENV_FILE"
 
-echo "Generated $ENV_FILE." >&2
-echo "Review the file before running 'pnpm dev' or 'make dev'." >&2
+echo "$ENV_FILE を生成しました。" >&2
+echo "'pnpm dev' を実行する前にファイルの内容を確認してください。" >&2
