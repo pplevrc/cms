@@ -1,12 +1,13 @@
 import type { Access } from 'payload'
 
 /**
- * Users collection access: admins see/edit all rows; non-admins see/edit only their own row.
- * Returns a row-level query constraint (`{ id: { equals: user.id } }`) for non-admins,
- * which Payload narrows the result set with at the database layer.
+ * Users collection 用の access。admin は全 row を read / edit でき、非 admin は
+ * 自分自身の row のみ。非 admin には行レベルのクエリ制約
+ * `{ id: { equals: user.id } }` を返し、Payload が DB レイヤで結果セットを
+ * 絞り込む。
  *
- * Returns false (deny) for unauthenticated requests so that anonymous traffic
- * cannot list user records.
+ * 未認証リクエストには false (拒否) を返し、匿名トラフィックがユーザーレコード
+ * を一覧できないようにする。
  */
 export const isOwnerOrAdmin: Access = ({ req: { user } }) => {
   if (!user) return false

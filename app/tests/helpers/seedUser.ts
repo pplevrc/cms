@@ -4,8 +4,9 @@ import config from '../../src/payload.config.js'
 export const testUser = {
   email: 'dev@payloadcms.com',
   password: 'test',
-  // The seeded user must be an admin to access the admin panel and manage
-  // other users; non-admins are restricted to their own record after #5.
+  // 管理パネルへのアクセスと他ユーザーの管理 (作成・全件参照・削除) には admin
+  // 権限が必要。非 admin は自分のレコードしか読めない / 触れない仕様なので、
+  // 管理操作を伴う e2e テストの seed user は admin として作る。
   isAdmin: true,
 }
 

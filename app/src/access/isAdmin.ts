@@ -1,7 +1,7 @@
 import type { Access } from 'payload'
 
 /**
- * Allow only authenticated admin users (`isAdmin === true`).
- * Returns false for unauthenticated requests and non-admin users.
+ * 認証済みかつ `isAdmin === true` のユーザーのみ許可する。
+ * 未認証リクエストおよび非 admin ユーザーには false を返す。
  */
 export const isAdmin: Access = ({ req: { user } }) => Boolean(user?.isAdmin)

@@ -2,19 +2,20 @@ import type { FieldHook } from 'payload'
 
 export interface SetUserFieldOptions {
   /**
-   * When true, overwrite the field's value on every update operation (suitable for `updatedBy`).
-   * When false (default), set the value only on create (suitable for `createdBy`, which should
-   * remain immutable for audit-trail purposes).
+   * true の場合、毎回の update operation でフィールド値を上書きする (`updatedBy` 用途)。
+   * false (default) の場合は create 時のみ値をセットし、以降の update では維持する
+   * (`createdBy` 用途。監査トレイル目的で不変に保つ)。
    */
   always?: boolean
 }
 
 /**
- * Field-level beforeChange hook that fills a relationship field with the requesting user's id.
+ * リクエスト元ユーザーの id をリレーションシップフィールドに自動で埋める
+ * field-level beforeChange hook。
  *
- * Default behaviour (no options) sets the value on `create` only and leaves it untouched on
- * subsequent updates — appropriate for `createdBy` audit fields. Pass `{ always: true }` to
- * overwrite on every update — appropriate for `updatedBy` audit fields.
+ * デフォルト挙動 (引数なし) は create 時のみ値をセットし、以降の update では
+ * 値を触らない (`createdBy` 監査フィールド向け)。`{ always: true }` を渡すと
+ * 毎回の update でも上書きする (`updatedBy` 監査フィールド向け)。
  */
 export const setUserField =
   (options: SetUserFieldOptions = {}): FieldHook =>

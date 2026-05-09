@@ -25,7 +25,7 @@ export const Users: CollectionConfig = {
       },
       admin: {
         description:
-          'Grants permission to manage other users (create, read all, update all, delete). Only existing admins can change this field.',
+          '他ユーザーを管理する権限を付与する (作成・全件参照・全件更新・削除)。本フィールドの変更は既存の admin のみ可能。',
       },
     },
   ],
