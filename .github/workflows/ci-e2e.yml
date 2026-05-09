@@ -1,0 +1,72 @@
+name: CI — e2e
+
+# e2e は時間がかかるため、PR では `e2e` label が付いた場合のみ実行する。
+# main への push は最終 safety net として常時実行。
+#
+# 動作:
+# - `on.pull_request.types: [opened, synchronize, reopened, labeled]` で PR ライフサイクル
+#   全般 (作成 / 新コミット / 再オープン / label 後付け) で workflow が起動する
+# - 起動した workflow 内の test-e2e job は `if:` で `e2e` label の有無をフィルタする
+# - label 無し PR では job が SKIPPED として check status に現れる (workflow 自体が起動
+#   しないわけではない)。GitHub の required status check は SKIPPED を success として
+#   扱うため、required に含めるかどうかは運用設計の話 (`docs/RUNBOOK.md` 参照)
+#
+# 単一 ci.yml 内に job として置くより別 workflow に分離する利点は、e2e 系の trigger 制御
+# (例: `pull_request.types: [labeled]` を使った後付け label への反応) を default 系 job
+# (typecheck/lint/secretlint/test:int) のトリガと混在させずに済むこと、および将来 e2e
+# shard / nightly e2e 等を追加するときに本 file 内で完結させられること。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
+
+# 最小権限。本 workflow は actions/checkout で repo を読むだけで、PR / Issue / package など
+# 他リソースへの write 権限は必要ない。明示しないとデフォルト権限 (read/write が混在) が
+# 付与されうるため、CodeQL が指摘する command-injection 経由の権限昇格リスクを抑える目的で
+# 明示する。
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  test-e2e:
+    name: test:e2e
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'e2e')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # secretlint-disable-next-line @secretlint/secretlint-rule-database-connection-string -- CI のサービスコンテナ用 credential。GitHub Actions runner ローカルにのみ存在し、外部から到達不能。
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/cms
+      PAYLOAD_SECRET: ci-runner-only-secret-not-used-anywhere-else
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: pnpm --filter cms exec playwright install --with-deps chromium
+      - run: pnpm test:e2e

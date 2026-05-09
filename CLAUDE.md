@@ -166,6 +166,7 @@ AI が read-only で参照できる場合がある（`.claude/settings.local.jso
 
 - [defer-pr-merge-to-user](./.claude/skills/defer-pr-merge-to-user/SKILL.md) — PR の最終 approve / merge は必ずユーザーが行う（Claude は Pass サマリで停止）
 - [create-prs-as-draft-until-ready](./.claude/skills/create-prs-as-draft-until-ready/SKILL.md) — PR は必ず `--draft` で作成し、ローカルレビュー完了後に ready 化
+- [decide-e2e-label](./.claude/skills/decide-e2e-label/SKILL.md) — PR 単位で `test:e2e` の必要性を判定（e2e 基盤変更は自動 label、`app/` 変更はユーザー判断、それ以外は skip）
 
 ### Skills（ドキュメント品質）
 
