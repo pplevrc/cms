@@ -123,6 +123,10 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  /**
+   * ユーザー権限。admin = ユーザー管理および全管理操作、moderator = 全コンテンツの作成 / 編集 / 削除、editor = 自分の作成エントリのみ更新。本フィールドの変更は admin のみ可能。
+   */
+  role: 'admin' | 'moderator' | 'editor';
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -149,6 +153,7 @@ export interface User {
 export interface Media {
   id: number;
   alt: string;
+  createdBy?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -240,6 +245,7 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  role?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -263,6 +269,7 @@ export interface UsersSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
+  createdBy?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;

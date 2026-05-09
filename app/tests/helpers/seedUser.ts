@@ -4,6 +4,11 @@ import config from '../../src/payload.config.js'
 export const testUser = {
   email: 'dev@payloadcms.com',
   password: 'test',
+  // 管理パネルへのアクセスと他ユーザーの管理 (作成・全件参照・削除) には
+  // `role: 'admin'` が必要。moderator / editor は自分のレコードしか
+  // 読めない / 触れない仕様なので、管理操作を伴う e2e テストの seed user
+  // は admin として作る。
+  role: 'admin' as const,
 }
 
 /**
