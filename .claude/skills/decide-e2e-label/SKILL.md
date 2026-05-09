@@ -5,15 +5,15 @@ description: Apply the `e2e` PR label only when the diff modifies e2e infrastruc
 
 # decide-e2e-label
 
-Decide whether to apply the `e2e` label to the current PR. The label triggers `test:e2e` via `.github/workflows/ci-e2e.yml`. A full e2e run currently takes ~30 minutes, so the policy is biased toward NOT labelling unless the change is one this suite cannot self-protect against.
+Decide whether to apply the `e2e` label to the current PR. The label triggers `test:e2e` via `.github/workflows/ci-e2e.yml`. A full e2e run currently takes ~30 minutes, so the policy is biased toward NOT labeling unless the change is one this suite cannot self-protect against.
 
 ## Why this is conservative
 
-`test:e2e` runs the full Payload boot + admin UI flow. It is the most expensive job in CI. Auto-labelling on every diff under `app/src/**` (the naive heuristic) burns 30 min on cosmetic changes — typo fixes, comment edits, unused-variable cleanups — that do not exercise runtime behaviour. The cost of a false positive (30 min wasted) is much larger than the cost of a false negative (developer adds the label after the fact, or the post-merge run on `main` catches it).
+`test:e2e` runs the full Payload boot + admin UI flow. It is the most expensive job in CI. Auto-labeling on every diff under `app/src/**` (the naive heuristic) burns 30 min on cosmetic changes — typo fixes, comment edits, unused-variable cleanups — that do not exercise runtime behaviour. The cost of a false positive (30 min wasted) is much larger than the cost of a false negative (developer adds the label after the fact, or the post-merge run on `main` catches it).
 
 The skill therefore auto-labels only the narrow set of changes that the e2e suite cannot self-protect against, and defers everything else to the user.
 
-## Two-tier policy
+## Three-tier policy
 
 ### Tier 1 — auto-apply the label
 
@@ -74,7 +74,7 @@ Do not fire after merge. The post-merge `main` push already triggers the e2e wor
    ```bash
    gh pr edit "$PR" --add-label "e2e"
    ```
-   Then exit (already labelled, Tier 2 prompt would be redundant).
+   Then exit (already labeled, Tier 2 prompt would be redundant).
 6. If no Tier 1 file but some Tier 2 file: surface the Tier 2 file list and ask the user "Does this change critically affect runtime? Add `e2e` label?". Apply or skip based on the answer.
 7. If only Tier 3 files: do nothing.
 
