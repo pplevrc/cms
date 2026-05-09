@@ -4,6 +4,9 @@ import config from '../../src/payload.config.js'
 export const testUser = {
   email: 'dev@payloadcms.com',
   password: 'test',
+  // The seeded user must be an admin to access the admin panel and manage
+  // other users; non-admins are restricted to their own record after #5.
+  isAdmin: true,
 }
 
 /**

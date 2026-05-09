@@ -123,6 +123,10 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  /**
+   * Grants permission to manage other users (create, read all, update all, delete). Only existing admins can change this field.
+   */
+  isAdmin?: boolean | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -149,6 +153,7 @@ export interface User {
 export interface Media {
   id: number;
   alt: string;
+  createdBy?: (number | null) | User;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -240,6 +245,7 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  isAdmin?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -263,6 +269,7 @@ export interface UsersSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
+  createdBy?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
