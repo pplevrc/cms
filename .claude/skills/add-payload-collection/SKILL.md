@@ -65,7 +65,7 @@ export const Posts: CollectionConfig = {
       relationTo: 'users',
       access: { update: () => false },
       hooks: {
-        beforeChange: [setUserField('createdBy')],
+        beforeChange: [setUserField()],
       },
     },
     {
@@ -74,7 +74,7 @@ export const Posts: CollectionConfig = {
       relationTo: 'users',
       access: { update: () => false },
       hooks: {
-        beforeChange: [setUserField('updatedBy', { always: true })],
+        beforeChange: [setUserField({ always: true })],
       },
     },
   ],

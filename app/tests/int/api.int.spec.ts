@@ -115,4 +115,31 @@ describe('Users collection access control', () => {
       }),
     ).rejects.toBeTruthy()
   })
+
+  it('non-admin cannot read another user by id', async () => {
+    // Row-level constraint `{ id: { equals: user.id } }` narrows the result set; reading
+    // a different user's id falls outside the constraint and Payload reports not-found.
+    await expect(
+      payload.findByID({
+        collection: 'users',
+        id: admin.id,
+        user: nonAdmin,
+        overrideAccess: false,
+      }),
+    ).rejects.toBeTruthy()
+  })
+
+  it('non-admin cannot update another user by id', async () => {
+    // Same row-level constraint applies on update; the target row falls outside the
+    // non-admin's permitted set and Payload rejects rather than silently no-op-ing.
+    await expect(
+      payload.update({
+        collection: 'users',
+        id: admin.id,
+        data: { email: 'hijacked@test.local' },
+        user: nonAdmin,
+        overrideAccess: false,
+      }),
+    ).rejects.toBeTruthy()
+  })
 })
