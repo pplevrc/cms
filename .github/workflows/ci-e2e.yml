@@ -22,6 +22,13 @@ on:
   push:
     branches: [main]
 
+# 最小権限。本 workflow は actions/checkout で repo を読むだけで、PR / Issue / package など
+# 他リソースへの write 権限は必要ない。明示しないとデフォルト権限 (read/write が混在) が
+# 付与されうるため、CodeQL が指摘する command-injection 経由の権限昇格リスクを抑える目的で
+# 明示する。
+permissions:
+  contents: read
+
 concurrency:
   group: ci-e2e-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
