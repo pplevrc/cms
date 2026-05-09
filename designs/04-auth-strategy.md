@@ -27,8 +27,8 @@ CMS access path として 2 経路を持つが、**通常運用は片方のみ a
                ▼
   ┌────────────────────────┐
   │ Users collection       │
-  │  - email (forced入力)  │  ◄── 入力は強制、認証経路は dormant
-  │  - password (placeholder hash) │
+  │  - email (forced 入力) │  ◄── 入力は強制、認証経路は dormant
+  │  - password            │  ◄── placeholder hash (bcrypt; 平文破棄)
   │  - discordId (unique)  │
   │  - role                │
   └────────────────────────┘
@@ -59,40 +59,39 @@ CMS access path として 2 経路を持つが、**通常運用は片方のみ a
 - Discord 死亡 → 計画手順で email mode に切替、CMS access 維持
 - どちらも「単一 vendor 完全依存」は構造上不可能
 
-## トライアル段階の例外
+## トライアル段階のスコープ
 
-トライアル段階に限り、**fallback infra を後回しにして Discord OAuth のみで運用する**。
+トライアル段階のスコープは **Discord OAuth のみ**。fallback infra (email 強制収集 + placeholder hash + reset 配線) の投入完了は **本リリース必須前提条件** として扱う。
+
 理由:
 
 - 本番データなし (コンテンツ 0、利用者数人)、SPOF 顕在化のコストが本番より桁違いに低い
 - 動作する経路 1 本に集中することで、トライアル段階の運用感確認を最短で回せる
-- fallback infra を含めた full design (email 強制収集 + placeholder hash + reset 配線) は
-  Discord OAuth 動作確認後の差分として段階的に積めるため、トライアル前提条件にしない
+- fallback infra の設計と動作確認は Discord OAuth 経路の動作確認後に独立して進められる
 
-トライアル → 本リリース のゲートとして、**fallback infra の投入完了を本リリース必須条件**とする。
 ゲート未達のまま本番投入することは絶対原則違反として扱う (`CLAUDE.md` §2-2)。
 
-## なぜ常時 dual maintain ではないのか
+## 通常時の active 経路を Discord OAuth 1 本に絞る理由
 
-「Discord OAuth と Email + Password を常時並行で active にする」案は採用しない。理由:
-
-- **UX 複雑化**: 利用者が「どちらでログインすればよいか」を毎回判断する必要が生まれる
-- **admin 工数増**: 2 経路の整合性管理 (パスワード変更時 Discord 退出時等) が常時発生
-- **SPOF 改善効果が薄まる**: primary が明確でないため、運用判断がブレる
-  (例: Discord 一過性障害で email mode を試みる人と、待つ人が混在し復旧後に整合崩れ)
-
-cold-standby は **通常時の admin 工数を Discord OAuth のみに集中させ、災害時のみ計画的に切替** する。
+cold-standby 構造は **通常時の admin 工数を Discord OAuth のみに集中させ、災害時のみ計画的に切替** する。
 通常 / 災害の切替コストは admin が手順に従って 1 度発動するだけで、運用判断のブレがゼロになる。
 
-## なぜ自動 fallback 切替ではないのか
+常時 dual maintain (Discord OAuth と Email + Password を並行 active) と比較した場合の cold-standby の利点:
 
-「Discord API 障害を検出して自動で email mode に切り替える」案も採用しない。理由:
+- **UX が単純**: 利用者は通常時 Discord ボタンしか見えず、ログイン経路の選択判断が不要
+- **admin 工数が少ない**: 通常時 active な経路は 1 本だけで、2 経路の整合性管理 (パスワード変更時の Discord 退出処理等) が発生しない
+- **SPOF 改善効果が明確**: primary が常に Discord OAuth で固定されるため、運用判断がブレない
+  (Discord 一過性障害でも「待つ」が標準動作で、混在する整合崩れが起きない)
+
+## fallback 切替を人間判断に残す理由
+
+fallback mode の発動 / 解除 / drill 手順を `docs/RUNBOOK.md` に明文化し、admin が 1 名で実行可能にする。
+判断トリガは Discord 障害の **長期化見込み** ・ **規約変更などの構造的要因** のいずれかで、いずれも人間判断の領域。
+
+自動切替 (Discord API 障害検出 → 自動 email mode 切替) は次の理由で採用しない:
 
 - **誤検知リスク**: Discord API の一過性障害 (rate limit / 数分の outage) で自動発動すると、復旧後に「全員にいきなり password reset メールが届いた」事故になる
 - **発動コスト**: fallback mode 発動 = 全員に reset メール送信 + UI 切替、戻すのも同コスト。自動化に値する頻度ではない
-- **判断は人間に残す**: 「Discord 経路が回復しない見込み」「規約変更で長期使えない」等の判断は人間がする領域
-
-自動化しないかわりに、発動 / 解除手順を `docs/RUNBOOK.md` に明文化し、admin が 1 名で実行可能にする。
 
 ## 不採用にした他の選択肢
 
@@ -110,10 +109,10 @@ cold-standby は **通常時の admin 工数を Discord OAuth のみに集中さ
 本設計を実装する後続 Issue は、以下を破ってはならない:
 
 1. Discord OAuth で初ログインする user は **email を必ず保持** する (収集タイミングは初回 OAuth 完了直後の強制フォーム)
-2. Users.password は **常に hash を持つ** (placeholder でも正規でも、空ではない)
+2. Users.password は **常に bcrypt hash を持つ** (placeholder でも正規でも、空にならない)。Discord 経由 user の placeholder hash は **cryptographically-random な平文を生成しその bcrypt 化を保存する** ことで作る (平文は破棄する)。これにより placeholder のままでは password 認証経路は構造的に必ず失敗する
 3. fallback mode の発動 / 解除は **admin authn 必須** の操作とする (誰でも踏める endpoint にしない)
 4. Discord membership 確認の cache は **24h 上限**。それ以上の長期 cache は退会済み user の延命を許す
-5. fallback mode の発動 / 解除 / drill 手順は `docs/RUNBOOK.md` に文書化し、最初の本物 secret 投入前に 1 度ドリル検証する
+5. fallback mode の発動 / 解除 / drill 手順は `docs/RUNBOOK.md` に文書化し、**本リリース前の trial 環境で実 Discord OAuth + SMTP secrets が揃った後に 1 度ドリル検証する** (production 投入前にゲートとして通過させる)
 
 これらの条件のいずれかを破る実装は、本設計の SPOF 回避効果を失わせるためリジェクト対象。
 
