@@ -1,5 +1,8 @@
 .claude/settings.local.json
 
+# 個人環境固有の Claude Code 指示（plugin 構成・好み等）
+CLAUDE.local.md
+
 # 具体値・固有名詞・組織情報を含むドキュメント (public repo に出さない)
 designs/private/
 
