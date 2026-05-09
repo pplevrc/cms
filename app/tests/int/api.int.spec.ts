@@ -165,8 +165,10 @@ describe('Users login lockout', () => {
   })
 
   it('locks user after maxLoginAttempts consecutive failed logins', async () => {
-    // CI と setup-env.sh の default は 5。万一 env 未設定でも安全側に倒すため fallback を 5 に。
-    const maxAttempts = Number(process.env.AUTH_MAX_LOGIN_ATTEMPTS ?? '5')
+    // Payload init 時点で `requireEnvNumber('AUTH_MAX_LOGIN_ATTEMPTS')` が成功して
+    // いる前提なので、テスト側は env 値を直接読んで OK。fallback は意図的に置かず、
+    // 設定漏れがあれば beforeAll の Payload init 時点で fail-fast する経路に揃える。
+    const maxAttempts = Number(process.env.AUTH_MAX_LOGIN_ATTEMPTS)
 
     // maxAttempts 回続けて誤った password でログイン試行。Payload は失敗のたびに
     // loginAttempts を increment し、threshold に到達した時点で lockUntil を立てる。
