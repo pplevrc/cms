@@ -62,15 +62,16 @@ describe('Users collection access control', () => {
   })
 
   it('non-admin cannot escalate isAdmin to true on their own record', async () => {
-    await expect(
-      payload.update({
-        collection: 'users',
-        id: nonAdmin.id,
-        data: { isAdmin: true },
-        user: nonAdmin,
-        overrideAccess: false,
-      }),
-    ).rejects.toBeTruthy()
+    // Payload's field-level access silently drops disallowed writes rather than rejecting
+    // the whole operation, so the update succeeds but the value stays unchanged.
+    const updated = await payload.update({
+      collection: 'users',
+      id: nonAdmin.id,
+      data: { isAdmin: true },
+      user: nonAdmin,
+      overrideAccess: false,
+    })
+    expect(updated.isAdmin).toBe(false)
   })
 
   it('non-admin cannot create new users', async () => {
