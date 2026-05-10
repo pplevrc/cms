@@ -5,12 +5,16 @@
 # 既存の app/.env は絶対に上書きしない (idempotent)。
 #
 # 自動で埋める値:
-#   PAYLOAD_SECRET: openssl rand -base64 32 で生成した 32 bytes ランダム値
-#   DATABASE_URL:   docker-compose のデフォルト接続文字列
-#                   (app/docker-compose.yml の environment と一致させる)
+#   PAYLOAD_SECRET:           openssl rand -base64 32 で生成した 32 bytes ランダム値
+#   DATABASE_URL:             docker-compose のデフォルト接続文字列
+#                             (app/docker-compose.yml の environment と一致させる)
+#   ALLOWED_ORIGINS:          ローカル admin URL (http://localhost:3000)
+#   AUTH_MAX_LOGIN_ATTEMPTS:  OWASP 推奨値 (5) — designs/private/auth-parameters.md
+#   AUTH_LOCK_TIME_MS:        15 分 (900000) — designs/private/auth-parameters.md
 #
-# 他の env vars は app/.env.example の空のまま残す。Storage / Mail / Auth
-# パラメータ等は機能を追加するタイミングで利用者が手で埋める想定。
+# 他の env vars (Storage / Mail / Upload / 認証以外のパラメータ等) は
+# app/.env.example の空のまま残し、機能を追加するタイミングで利用者が
+# 手で埋める想定。
 
 set -euo pipefail
 
@@ -52,32 +56,40 @@ PAYLOAD_SECRET=$(openssl rand -base64 32 | tr -d '\n')
 
 # secretlint-disable-next-line @secretlint/secretlint-rule-database-connection-string -- ローカル docker-compose default; matches app/docker-compose.yml environment.
 DEFAULT_DB_URL='postgres://postgres:postgres@127.0.0.1:5432/cms'
+DEFAULT_ALLOWED_ORIGINS='http://localhost:3000'
+DEFAULT_AUTH_MAX_LOGIN_ATTEMPTS='5'
+DEFAULT_AUTH_LOCK_TIME_MS='900000'
 
 # sed の shell 展開された argv に PAYLOAD_SECRET の生成値が乗ると、
 # /proc/<pid>/cmdline や多人数ホストでの `ps -ef` から一瞬読める状態が
 # 発生する。それを避けるため awk + ENVIRON[] 経由で env vars 経路を使い、
 # 値そのものは argv に乗らないようにする。
 #
-# END block で `secret_set` / `db_set` フラグをチェックし、両方の置換が
-# 実際に発火したことを確認する。app/.env.example の対応キーが空 default
-# でなくなった場合 (例: `PAYLOAD_SECRET=changeme`) は regex が match せず
+# END block で各キーの置換 flag をチェックし、すべての置換が実際に発火
+# したことを確認する。app/.env.example の対応キーが空 default でなく
+# なった場合 (例: `PAYLOAD_SECRET=changeme`) は regex が match せず
 # フラグ未設定 → awk が exit 1 → cleanup_on_error trap が走って半端な
 # .env が残らない、という流れで fail loud にする。
 PAYLOAD_SECRET="$PAYLOAD_SECRET" \
 DEFAULT_DB_URL="$DEFAULT_DB_URL" \
+DEFAULT_ALLOWED_ORIGINS="$DEFAULT_ALLOWED_ORIGINS" \
+DEFAULT_AUTH_MAX_LOGIN_ATTEMPTS="$DEFAULT_AUTH_MAX_LOGIN_ATTEMPTS" \
+DEFAULT_AUTH_LOCK_TIME_MS="$DEFAULT_AUTH_LOCK_TIME_MS" \
 awk '
-  /^PAYLOAD_SECRET=$/ { sub(/=$/, "=" ENVIRON["PAYLOAD_SECRET"]); secret_set=1 }
-  /^DATABASE_URL=$/   { sub(/=$/, "=" ENVIRON["DEFAULT_DB_URL"]); db_set=1 }
+  /^PAYLOAD_SECRET=$/          { sub(/=$/, "=" ENVIRON["PAYLOAD_SECRET"]); secret_set=1 }
+  /^DATABASE_URL=$/            { sub(/=$/, "=" ENVIRON["DEFAULT_DB_URL"]); db_set=1 }
+  /^ALLOWED_ORIGINS=$/         { sub(/=$/, "=" ENVIRON["DEFAULT_ALLOWED_ORIGINS"]); origins_set=1 }
+  /^AUTH_MAX_LOGIN_ATTEMPTS=$/ { sub(/=$/, "=" ENVIRON["DEFAULT_AUTH_MAX_LOGIN_ATTEMPTS"]); max_attempts_set=1 }
+  /^AUTH_LOCK_TIME_MS=$/       { sub(/=$/, "=" ENVIRON["DEFAULT_AUTH_LOCK_TIME_MS"]); lock_time_set=1 }
   { print }
   END {
-    if (!secret_set) {
-      print "PAYLOAD_SECRET の置換に失敗しました。app/.env.example の PAYLOAD_SECRET= に default 値が入っていないか確認してください。" > "/dev/stderr"
-      exit 1
-    }
-    if (!db_set) {
-      print "DATABASE_URL の置換に失敗しました。app/.env.example の DATABASE_URL= に default 値が入っていないか確認してください。" > "/dev/stderr"
-      exit 1
-    }
+    failed = 0
+    if (!secret_set)        { print "PAYLOAD_SECRET の置換に失敗しました。app/.env.example の PAYLOAD_SECRET= に default 値が入っていないか確認してください。" > "/dev/stderr"; failed = 1 }
+    if (!db_set)            { print "DATABASE_URL の置換に失敗しました。app/.env.example の DATABASE_URL= に default 値が入っていないか確認してください。" > "/dev/stderr"; failed = 1 }
+    if (!origins_set)       { print "ALLOWED_ORIGINS の置換に失敗しました。app/.env.example の ALLOWED_ORIGINS= に default 値が入っていないか確認してください。" > "/dev/stderr"; failed = 1 }
+    if (!max_attempts_set)  { print "AUTH_MAX_LOGIN_ATTEMPTS の置換に失敗しました。app/.env.example の AUTH_MAX_LOGIN_ATTEMPTS= に default 値が入っていないか確認してください。" > "/dev/stderr"; failed = 1 }
+    if (!lock_time_set)     { print "AUTH_LOCK_TIME_MS の置換に失敗しました。app/.env.example の AUTH_LOCK_TIME_MS= に default 値が入っていないか確認してください。" > "/dev/stderr"; failed = 1 }
+    if (failed) exit 1
   }
 ' "$ENV_FILE" > "$ENV_FILE.tmp"
 mv "$ENV_FILE.tmp" "$ENV_FILE"

@@ -145,3 +145,48 @@ describe('Users collection access control', () => {
     ).rejects.toBeTruthy()
   })
 })
+
+describe('Users login lockout', () => {
+  const lockoutEmail = 'lockout-test@test.local'
+  const correctPassword = 'correctPassword123'
+  const wrongPassword = 'wrongPassword123'
+
+  beforeAll(async () => {
+    // 前回実行のフィクスチャを削除して suite を冪等に保つ。
+    await payload.delete({
+      collection: 'users',
+      where: { email: { equals: lockoutEmail } },
+    })
+
+    await payload.create({
+      collection: 'users',
+      data: { email: lockoutEmail, password: correctPassword, role: 'editor' },
+    })
+  })
+
+  it('locks user after maxLoginAttempts consecutive failed logins', async () => {
+    // Payload init 時点で `requireEnvNumber('AUTH_MAX_LOGIN_ATTEMPTS')` が成功して
+    // いる前提なので、テスト側は env 値を直接読んで OK。fallback は意図的に置かず、
+    // 設定漏れがあれば beforeAll の Payload init 時点で fail-fast する経路に揃える。
+    const maxAttempts = Number(process.env.AUTH_MAX_LOGIN_ATTEMPTS)
+
+    // maxAttempts 回続けて誤った password でログイン試行。Payload は失敗のたびに
+    // loginAttempts を increment し、threshold に到達した時点で lockUntil を立てる。
+    for (let i = 0; i < maxAttempts; i++) {
+      await expect(
+        payload.login({
+          collection: 'users',
+          data: { email: lockoutEmail, password: wrongPassword },
+        }),
+      ).rejects.toBeTruthy()
+    }
+
+    // 次の試行は (たとえ正しい password でも) lockUntil が有効な間 reject される。
+    await expect(
+      payload.login({
+        collection: 'users',
+        data: { email: lockoutEmail, password: correctPassword },
+      }),
+    ).rejects.toBeTruthy()
+  })
+})
