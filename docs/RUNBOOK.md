@@ -296,3 +296,208 @@ gh secret list
 - **rotation 中の downtime ゼロを狙って両方有効化したまま旧値を revoke し忘れる** — 新値の動作確認後、必ず vendor dashboard で旧値を明示的に無効化する。
 - **古い JWT が残っている browser からのアクセスを「正常」と勘違い** — `PAYLOAD_SECRET` rotation 後は古い JWT は decode 失敗するはず。「ログインしたままになっている」場合は rotation が反映されていない (Vercel redeploy 漏れなど)。
 - **`gh secret set <NAME> --body "<VALUE>"` でシェル履歴に値が残る** — 「`gh secret set` の安全な渡し方」セクション参照。共有環境では絶対に避ける。
+
+## Vercel + Neon 初期セットアップ
+
+トライアル段階の admin 配備で Neon (managed Postgres) を DB に、Vercel を deploy 先に置く。本セクションは vendor 固有の ID / DSN / credential を repo に書かないために、すべて placeholder ベースで手順を記載する。実値は Vercel UI / Neon UI で都度入力する。
+
+リモート配備が完了するまでは「Secret rotation」セクション内の `(将来) Vercel 配備完了後` マーカーが残るが、本セットアップが終わったタイミングでマーカーを外して該当環境を rotation 対象に追加する。
+
+### 前提
+
+- GitHub repo の admin 権限を持つアカウント (Vercel との Git 連携で installation 承認が必要)
+- Neon の team / personal アカウント (個人アカウントを使う場合、退職リスクを避けるため将来的に team アカウントへ移行する旨を `docs/HISTORY.md` に記録する)
+- Vercel の team / personal アカウント (同上)
+- ローカルに `vercel` CLI を導入済み (`pnpm dlx vercel --version` で確認可)。CLI を使わず Vercel UI のみで完結させる場合は不要
+
+vendor アカウントが個人 1 人に紐づく状態は `CLAUDE.md` 2-2「シングルポイント障害を作らない」に抵触する。少なくとも本セットアップ完了直後に「アカウント所有者が抜けた場合の引き継ぎ手順」を別途文書化する。
+
+### 手順 1: Neon プロジェクト + DB 払い出し
+
+1. Neon dashboard にサインイン → `Create Project` を実行。
+   - Project name: `<NEON_PROJECT>` (例: コミュニティ名 + `-cms-trial` 等。public repo に書かない)
+   - Postgres version: 最新安定版 (Neon が default で提示する版)
+   - Region: 配信先ユーザーから geographically 近いリージョン
+2. プロジェクト作成直後に default で `main` branch / `<DATABASE_NAME>` DB / `<DB_OWNER_ROLE>` role が払い出される。dashboard の `Connection Details` から **pooled connection string** を取得し、`postgresql://...` 形式 (scheme + role + password + Neon host + DB 名 + `sslmode=require`) の値を控える。
+   - Vercel のような serverless ランタイムからは pooled (PgBouncer) 経由を推奨。direct connection は migration / 一括書き込み用に別途控える。
+3. (任意 / 推奨) Production と Preview で別 DB を分離するため、Neon の `Branches` 機能で `<NEON_PREVIEW_BRANCH>` を作成する。Preview branch は本番データを汚染せず schema 互換性確認に使える。
+4. `Roles` タブで application 用の role (`<APP_ROLE>`) を別途作成し、必要最小限の権限のみ付与する。owner role は migration / DDL 専用にし、ランタイムは `<APP_ROLE>` で接続する構成を推奨。
+5. ここで取得した connection string は `DATABASE_URL` として Vercel 側に投入する。値をローカルファイルに保存しない (clipboard → Vercel UI へ直接貼る)。
+
+### 手順 2: Vercel プロジェクト払い出し + GitHub repo へのリンク
+
+1. Vercel dashboard にサインイン → `Add New...` → `Project` を実行。
+2. `Import Git Repository` で本 GitHub repo を選択 (Vercel GitHub App の installation 権限が必要。private org の場合は org admin から承認をもらう)。
+3. Project name: `<VERCEL_PROJECT>` を設定。
+4. Framework preset: `Next.js` が自動検出される。
+5. Root Directory: `app/` を指定 (本 repo は monorepo 構成で Next.js app が `app/` 直下にある)。
+6. Build / Output 設定はデフォルトのまま。`pnpm` lockfile が repo root にあるため、Vercel は `pnpm install` を自動選択する。
+7. Environment Variables の入力は手順 3 で行うため、ここでは空のまま `Deploy` を押下せず、一旦 `Skip` または最小値で先に作成する (project だけ作って env 投入後に redeploy する流れ)。
+8. 作成完了後、Vercel project 設定の `Git` タブで本 repo の `main` branch が `Production Branch` になっていることを確認する。
+
+### 手順 3: Vercel env vars 投入
+
+`app/.env.example` に列挙されているキーのうち、Phase 1 の admin トライアルで必要なものを投入する。STORAGE / SMTP 系は対応 vendor (S3 互換ストレージ / メール送信 SaaS) の配線が完了したタイミングで追加する想定で、本セットアップでは投入しない。
+
+#### Phase 1 で投入する key
+
+| key | scope | 値の出処 |
+|---|---|---|
+| `DATABASE_URL` | Production / Preview | 手順 1 で取得した Neon connection string。Production と Preview で別 branch を分けた場合はそれぞれ別値 |
+| `PAYLOAD_SECRET` | Production / Preview | `openssl rand -base64 32` で生成した 32+ chars random。Production と Preview は別値 |
+| `NEXT_PUBLIC_SERVER_URL` | Production | 本配備後の本番 URL (`https://<VERCEL_PRODUCTION_HOST>`)。Preview scope は preview URL が deploy 毎に変わるため Vercel 提供の `VERCEL_URL` system env を内部で参照する設計に倒すか、Preview には設定しない |
+| `COOKIE_DOMAIN` | Production | 本配備後の本番ホスト名 (`<VERCEL_PRODUCTION_HOST>`)。Preview は ephemeral host のため設定しない (Cookie は host-only として発行される) |
+| `ALLOWED_ORIGINS` | Production / Preview | カンマ区切り。Production は本番 origin、Preview は preview URL を含む allow-list (Vercel `VERCEL_URL` を build 時に展開する設計を取らない場合は wildcard 排除のため明示列挙) |
+| `AUTH_TOKEN_EXPIRATION_SEC` | Production / Preview | JWT 有効期間 (秒)。許容レンジ 3600 (1h) ~ 86400 (24h)。admin 用途は短めが推奨で、標準 7200 (2h) |
+| `AUTH_MAX_LOGIN_ATTEMPTS` | Production / Preview | 連続ログイン失敗回数のロック閾値。許容レンジ 3 ~ 10。標準 5 |
+| `AUTH_LOCK_TIME_MS` | Production / Preview | ロック継続時間 (ミリ秒)。許容レンジ 300000 (5min) ~ 3600000 (1h)。標準 900000 (15min) |
+| `AUTH_PASSWORD_MIN_LENGTH` | Production / Preview | パスワード最小長。admin 用は 12 以上必須、推奨 16 |
+| `RATE_LIMIT_LOGIN_MAX` | Production / Preview | 単位時間あたりのログイン試行上限。許容レンジ 5 ~ 20。標準 10 |
+| `RATE_LIMIT_LOGIN_WINDOW_MS` | Production / Preview | rate limit の判定ウィンドウ (ミリ秒)。許容レンジ 60000 (1min) ~ 900000 (15min)。標準 300000 (5min) |
+| `UPLOAD_MAX_FILE_SIZE_BYTES` | Production / Preview | アップロード最大バイト数。コミュニティ写真共有想定で 10485760 (10MB) ~ 52428800 (50MB)。標準 20971520 (20MB) |
+| `UPLOAD_ALLOWED_MIMETYPES` | Production / Preview | カンマ区切り MIME タイプ。標準は画像のみ `image/png,image/jpeg,image/webp` (実行可能形式・任意バイナリは含めない) |
+
+組織固有の最終決定値を別途運用ドキュメントで管理している場合はそちらを優先する。本表の標準値は public 利用想定の安全側デフォルト。
+
+#### 投入しない key (vendor 配線完了後に追加)
+
+`STORAGE_*` / `MEDIA_PUBLIC_URL` / `SMTP_*` / `MAIL_FROM_*` は対応 vendor (S3 互換ストレージ / Resend) 配線完了後に投入する。先に key だけ Vercel に登録すると「未配線なのに値が見える」状態になり、誤って参照するコードが merge されうるため、配線が終わるまで Vercel 側にも登録しない。
+
+#### 投入方法 (CLI)
+
+values を shell history に残さないため、`vercel env add` を TTY で実行し、対話的に値を貼り付ける:
+
+```bash
+# プロジェクト link を一度だけ実施 (project root で 1 回)
+pnpm dlx vercel link
+
+# scope 別に投入。コマンドが対話的に値入力を促す。クリップボードから貼り付け、Enter で確定。
+pnpm dlx vercel env add DATABASE_URL production
+pnpm dlx vercel env add DATABASE_URL preview
+pnpm dlx vercel env add PAYLOAD_SECRET production
+pnpm dlx vercel env add PAYLOAD_SECRET preview
+# ... 上表の残り key も同様
+```
+
+scope は 3 種類 (`production` / `preview` / `development`)。本セットアップでは `production` と `preview` の 2 scope を埋める。`development` scope は Vercel CLI でローカル `vercel dev` を使う開発者向けで、本 repo は `pnpm dev` (Docker Compose + Next.js) でローカル開発するため空のままでよい。
+
+#### 投入方法 (UI)
+
+CLI を使わない場合は Vercel project の `Settings` → `Environment Variables` から同じ scope 指定で 1 key ずつ追加する。値はテキストフィールドに直接貼り付ける。
+
+### 手順 4: 動作確認
+
+1. **push-to-deploy 確認**: 任意の branch (例: `chore/vercel-trial-smoke`) に空 commit を push し、PR を起こす。Vercel が PR に preview URL コメントを自動投稿することを確認する (`https://<VERCEL_PROJECT>-<HASH>-<TEAM>.vercel.app` 形式)。
+2. **preview deploy ログ確認**: Vercel dashboard の `Deployments` から該当 deployment を開き、build / install / next build がすべて success になっていることを確認する。
+3. **admin user 作成**: 初回のみ admin user を作成する必要がある。preview URL の `/admin` を開き、Payload の first-user 作成画面が表示されることを確認 → 検証用メールアドレスとパスワードを入力して登録。
+4. **admin login 確認**: ログアウト → 再度 `/admin` にアクセスしログイン画面が表示されること、登録した credential でログインできること、ログイン後に admin 画面 (Dashboard) が表示されることを確認する。
+5. **Production deploy 確認**: PR を `main` に merge し、Vercel が `Production` deployment を起動することを確認する。Production URL (`https://<VERCEL_PRODUCTION_HOST>`) で同じ admin login が成立することを確認する。
+
+### よくある失敗
+
+- **Vercel build が `Cannot find module 'next'` で失敗**: Root Directory が `app/` に設定されていない。Project Settings → General → Root Directory で `app/` を指定する。
+- **`/admin` で 500 が返る**: `DATABASE_URL` が未設定 / 接続失敗。Vercel deployment ログの runtime logs で Postgres エラーが出ていないか確認する。Neon 側で IP allowlist を有効にしている場合は Vercel からの接続が拒否されるため、IP allowlist を解除するか Vercel の outbound IP を許可する。
+- **preview URL で admin login が「Invalid email or password」になる**: admin user は **deployment ごとの DB に紐づく**。Preview と Production で別 DB (Neon branch 分離) を使っている場合、それぞれで初回 admin user 作成が必要。
+- **CSRF / CORS で admin UI が静的アセットしか描画しない**: `ALLOWED_ORIGINS` に preview URL が含まれていない、または Production でのみ origin を設定して Preview で空になっている。Preview scope の `ALLOWED_ORIGINS` を更新する。
+- **同一 origin で複数の admin が同時セッションを取れない**: Cookie の `secure` / `sameSite` 設定がローカル前提のままになっている可能性。`docs/coding-standards.md` の Cookie 設定方針に従って production 設定を確認する。
+
+## Vercel + Neon rollback 手順
+
+deploy が壊れた / DB 状態を巻き戻したい / 緊急で公開を止めたい状況の手順。シナリオ別に独立して読めるよう書く。
+
+### シナリオ 1: deploy がアプリ側 bug で壊れた
+
+直前まで動いていた状態に戻すのが目的。とるべき手は 2 通り、状況に応じて使い分ける。
+
+#### 手順 A: 直前の green commit に `git revert`
+
+bug を含む commit が特定済みで、コードレベルで戻したい場合:
+
+1. ローカルで対象 commit を `git revert <COMMIT_SHA>` する (merge commit の場合は `-m 1` を付ける)。
+2. PR を作成 → CI green を確認 → merge する。
+3. Vercel が `main` への push を検知して自動的に新 Production deployment を起動する。新 deployment が active になった時点で旧 (壊れた) deployment は外される。
+4. Production URL で動作復帰を確認する。
+
+bug 修正の正式 PR を後追いで起こす場合も、まずは revert で公開状態を戻し、修正は別 PR として独立させる。
+
+#### 手順 B: Vercel UI で旧 deployment を再昇格 (Promote to Production)
+
+revert PR を待つ余裕がない場合、または bug commit が複数絡んでいて単純な revert で戻せない場合:
+
+1. Vercel dashboard → 対象 project → `Deployments` タブを開く。
+2. 直前の安定 deployment (green、status `Ready`) を選択する。
+3. deployment 詳細画面の `...` メニューから `Promote to Production` を実行する。
+4. Vercel が当該 deployment の build artifact を Production alias (`https://<VERCEL_PRODUCTION_HOST>`) に再割り当てする (再 build は走らない)。
+5. Production URL で動作復帰を確認する。
+6. **後続作業として必須**: その後 `main` への新規 push があると、Vercel は再び `main` を Production として deploy し、Promote した旧 deployment は再び外れる。`main` を壊れた状態のままにせず、bug 修正 PR (または revert PR) を必ず merge してコードと Production state を一致させる。
+
+### シナリオ 2: deploy 自体を一時停止したい
+
+env 設定ミスを調査中など、新 commit が自動 deploy されると困る場合。
+
+#### 手順 A: Production Branch 切り替えによる事実上の deploy 停止
+
+最も影響が小さい止め方。Production deploy だけ止めて Preview deploy は維持できる。
+
+1. Vercel dashboard → 対象 project → `Settings` → `Git`。
+2. `Production Branch` を `main` から空 / または存在しない branch 名 (例: `frozen`) に切り替える。
+3. これ以降 `main` への push は Preview deploy としてのみ扱われ、Production alias は固定される。
+4. 復旧時は Production Branch を `main` に戻す → 直近 commit を Production deploy するか、`Promote to Production` で任意 deployment を昇格する。
+
+#### 手順 B: GitHub Integration を一時切断
+
+push 自体を Vercel に拾わせたくない場合。
+
+1. Vercel dashboard → 対象 project → `Settings` → `Git` → `Disconnect Git Repository`。
+2. 切断中は GitHub からの自動 deploy は発生しない。手動 deploy (`vercel --prod`) のみ可能。
+3. 復旧時は同画面から再連携する。連携を再開しても過去の commit は遡って deploy されない。
+
+切断するとブランチ毎の preview URL も止まるため、調査作業を Preview 上で続けたい場合は手順 A の方が向く。
+
+### シナリオ 3: Neon DB の状態を巻き戻したい
+
+migration 失敗 / 誤った一括更新などで DB を任意時点に戻したい場合。Neon は branch / Point-in-Time Restore (PITR) を提供する。
+
+#### 手順 A: Neon Branch を使った巻き戻し (推奨)
+
+本番 DB を直接巻き戻すのではなく、戻したい時刻の snapshot から branch を切り、新 branch を新しい Production DB として採用する。本番 branch は痕跡として残せるため、調査が後追いで可能。
+
+1. Neon dashboard → 対象プロジェクト → `Branches` タブ → `Create Branch`。
+2. `Parent branch` を Production の現行 branch、`Time travel` で戻したい時刻 (UTC) を指定する (`<RESTORE_TIMESTAMP>`)。
+3. 新 branch の connection string (`postgresql://...` 形式、host 部分が新 branch 用ホストに変わる) を取得する。
+4. Vercel Production scope の `DATABASE_URL` を新 branch の値に更新する (`vercel env rm DATABASE_URL production --yes` → `vercel env add DATABASE_URL production` → 値貼り付け)。`vercel env add` も TTY 入力により値が shell history に残らない原則に従う (本書「Secret rotation」セクション冒頭で `gh secret set` を例として詳述している原則と同じ)。
+5. Vercel を `vercel --prod` で redeploy する (env 変更は次回 deploy で反映)。
+6. Production URL で巻き戻された状態を確認する。
+7. 旧 branch は数日間保持し、原因調査が完了したら `Delete Branch` で削除する。
+
+#### 手順 B: Point-in-Time Restore (Restore in place)
+
+巻き戻し先の時点で本番 branch を上書きしたい場合 (現行 branch を historical state に巻き戻す)。
+
+1. Neon dashboard → 対象プロジェクト → `Backups & Restore` → `Restore`。
+2. 戻したい時刻 (`<RESTORE_TIMESTAMP>`) を指定する。
+3. 復元範囲 (Production branch) を選び、`Restore` を実行する。Neon が新しい head に置き換える。
+4. connection string は既存と同じため Vercel env 更新は不要。Vercel を redeploy する必要もないが、connection pooler のキャッシュを切り替えるため `vercel --prod` で 1 回 redeploy するのが確実。
+5. Production URL で巻き戻された状態を確認する。
+
+手順 A と異なり旧状態は復元時刻以降の差分が失われる。差分を調査用に残したい場合は手順 A を選ぶ。
+
+### シナリオ 4: 緊急 take-down
+
+credential 漏洩 / 不正アクセス検知 / 法的要請など、即座に公開を止めて credential も使えなくする必要がある場合。**初動 5 分で打てる手** から並べる。
+
+1. **Vercel project を非公開化** — Vercel dashboard → 対象 project → `Settings` → `Deployment Protection` → `Vercel Authentication` を有効化。これで全 deployment (Production / Preview 含む) が Vercel ログインなしではアクセスできなくなる。DNS や Production alias を変えずに即座に外部からの accessibility を切れる。
+2. **Neon role password を即時 rotation** — Neon dashboard → `Roles` → 対象 role の `Reset password`。漏洩した接続文字列を即座に無効化する。手順は本書「Secret rotation」セクション → `DATABASE_URL` (Neon role password) を参照し、Vercel env 更新まで完了させる。
+3. **Payload secret を rotation** — JWT も漏洩している前提で、`PAYLOAD_SECRET` も同時に rotation する。手順は「Secret rotation」セクション → `PAYLOAD_SECRET` を参照。これで漏洩した token / セッションが全て invalidate される。
+4. **GitHub repo の write 権限見直し** — credential 漏洩経路として GitHub access token / collaborator アカウントの可能性がある場合、GitHub repo の Settings → Collaborators / Deploy keys / Actions secrets を棚卸しし、不要なものを revoke する。
+5. **事後対応**: Vercel Authentication を解除する前に、(1) 漏洩経路の特定、(2) credential 全件 rotation 完了、(3) 不正操作の有無の audit log 確認、を完了させる。Vercel deployment logs / Neon query history / GitHub audit log を相互照合する。
+
+`Vercel Authentication` 有効化はユーザー体験を完全に止めるため、完全 take-down が必要なケース専用とする。部分的な絞り込みで足りる場合 (特定 origin だけ拒否したい等) は手順 2「Production Branch 切り替え」または application 側 `ALLOWED_ORIGINS` の絞り込みで対処する。
+
+### よくある失敗
+
+- **revert PR を起こしたが Vercel が壊れた deployment を Production に置いたまま**: revert PR が `main` に merge されていない (draft のままなど)。`main` への merge を確認する。緊急時は手順 B (`Promote to Production`) で先に Production を戻し、revert PR は後追いする。
+- **Promote to Production 後に bug が再発した**: `main` への新規 push が走り、Vercel が再び `main` を Production にした。「シナリオ 1 手順 B」末尾の「後続作業として必須」を参照。
+- **Neon Branch 切り戻し後も古いデータが見える**: Vercel が古い `DATABASE_URL` で deploy されたままになっている (env 変更が次回 deploy で反映されるため)。`vercel --prod` で redeploy する。
+- **Take-down 中に Vercel Authentication を切ったが credential 鳥かごから漏洩 token が再利用された**: `PAYLOAD_SECRET` rotation が漏れている。Take-down の手順 3 を必ず通す。
+- **Take-down 解除タイミングの判断ミス**: 漏洩経路が特定できないまま Vercel Authentication を解除すると同じ攻撃が再発する。事後対応 3 項目をチェックリストとして必ず潰してから解除する。
