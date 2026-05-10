@@ -20,6 +20,16 @@ const allowedOrigins = requireEnv('ALLOWED_ORIGINS')
   .map((origin) => origin.trim())
   .filter(Boolean)
 
+// 区切り文字だけの値 (例: `, ,`) は trim / filter 後に空配列となる。boot 自体は
+// 成功するが Payload の cors / csrf が空配列で起動するため、すべての browser
+// origin が reject される silent failure を生む。`*` ガードと対称に boot 時点で
+// 明示 throw する。
+if (allowedOrigins.length === 0) {
+  throw new Error(
+    'ALLOWED_ORIGINS には少なくとも 1 つのオリジンを明示的に指定してください (カンマ区切り)。',
+  )
+}
+
 // CLAUDE.md §4-7「CORS / CSRF を `*` で実装しない」を env vars の設定ミスから
 // 守るためのガード。`ALLOWED_ORIGINS=*` で起動した場合、配列要素ベース判定の
 // Payload で全許可と等価になる経路が生まれるため、boot 時点で明示 throw する。
