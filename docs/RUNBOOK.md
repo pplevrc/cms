@@ -337,7 +337,7 @@ vendor アカウントが個人 1 人に紐づく状態は `CLAUDE.md` 2-2「シ
 
 ### 手順 3: Vercel env vars 投入
 
-`app/.env.example` に列挙されているキーのうち、Phase 1 の admin トライアルで必要なものを投入する。STORAGE / SMTP 系は本セットアップ完了 Issue より後の (後続 Issue で扱う) ため、ここでは投入しない (= 該当 vendor 配線が完了したタイミングで追加する)。
+`app/.env.example` に列挙されているキーのうち、Phase 1 の admin トライアルで必要なものを投入する。STORAGE / SMTP 系は対応 vendor (S3 互換ストレージ / メール送信 SaaS) の配線が完了したタイミングで追加する想定で、本セットアップでは投入しない。
 
 #### Phase 1 で投入する key
 
@@ -348,16 +348,18 @@ vendor アカウントが個人 1 人に紐づく状態は `CLAUDE.md` 2-2「シ
 | `NEXT_PUBLIC_SERVER_URL` | Production | 本配備後の本番 URL (`https://<VERCEL_PRODUCTION_HOST>`)。Preview scope は preview URL が deploy 毎に変わるため Vercel 提供の `VERCEL_URL` system env を内部で参照する設計に倒すか、Preview には設定しない |
 | `COOKIE_DOMAIN` | Production | 本配備後の本番ホスト名 (`<VERCEL_PRODUCTION_HOST>`)。Preview は ephemeral host のため設定しない (Cookie は host-only として発行される) |
 | `ALLOWED_ORIGINS` | Production / Preview | カンマ区切り。Production は本番 origin、Preview は preview URL を含む allow-list (Vercel `VERCEL_URL` を build 時に展開する設計を取らない場合は wildcard 排除のため明示列挙) |
-| `AUTH_TOKEN_EXPIRATION_SEC` | Production / Preview | 想定値は `app/.env.example` のコメント / `designs/private/auth-parameters.md` (gitignored) を参照 |
-| `AUTH_MAX_LOGIN_ATTEMPTS` | Production / Preview | 同上 |
-| `AUTH_LOCK_TIME_MS` | Production / Preview | 同上 |
-| `AUTH_PASSWORD_MIN_LENGTH` | Production / Preview | 同上 |
-| `RATE_LIMIT_LOGIN_MAX` | Production / Preview | 同上 |
-| `RATE_LIMIT_LOGIN_WINDOW_MS` | Production / Preview | 同上 |
-| `UPLOAD_MAX_FILE_SIZE_BYTES` | Production / Preview | 同上 |
-| `UPLOAD_ALLOWED_MIMETYPES` | Production / Preview | 同上 |
+| `AUTH_TOKEN_EXPIRATION_SEC` | Production / Preview | JWT 有効期間 (秒)。許容レンジ 3600 (1h) ~ 86400 (24h)。admin 用途は短めが推奨で、標準 7200 (2h) |
+| `AUTH_MAX_LOGIN_ATTEMPTS` | Production / Preview | 連続ログイン失敗回数のロック閾値。許容レンジ 3 ~ 10。標準 5 |
+| `AUTH_LOCK_TIME_MS` | Production / Preview | ロック継続時間 (ミリ秒)。許容レンジ 300000 (5min) ~ 3600000 (1h)。標準 900000 (15min) |
+| `AUTH_PASSWORD_MIN_LENGTH` | Production / Preview | パスワード最小長。admin 用は 12 以上必須、推奨 16 |
+| `RATE_LIMIT_LOGIN_MAX` | Production / Preview | 単位時間あたりのログイン試行上限。許容レンジ 5 ~ 20。標準 10 |
+| `RATE_LIMIT_LOGIN_WINDOW_MS` | Production / Preview | rate limit の判定ウィンドウ (ミリ秒)。許容レンジ 60000 (1min) ~ 900000 (15min)。標準 300000 (5min) |
+| `UPLOAD_MAX_FILE_SIZE_BYTES` | Production / Preview | アップロード最大バイト数。コミュニティ写真共有想定で 10485760 (10MB) ~ 52428800 (50MB)。標準 20971520 (20MB) |
+| `UPLOAD_ALLOWED_MIMETYPES` | Production / Preview | カンマ区切り MIME タイプ。標準は画像のみ `image/png,image/jpeg,image/webp` (実行可能形式・任意バイナリは含めない) |
 
-#### 投入しない key (後続 Issue で扱う)
+組織固有の最終決定値を別途運用ドキュメントで管理している場合はそちらを優先する。本表の標準値は public 利用想定の安全側デフォルト。
+
+#### 投入しない key (vendor 配線完了後に追加)
 
 `STORAGE_*` / `MEDIA_PUBLIC_URL` / `SMTP_*` / `MAIL_FROM_*` は対応 vendor (S3 互換ストレージ / Resend) 配線完了後に投入する。先に key だけ Vercel に登録すると「未配線なのに値が見える」状態になり、誤って参照するコードが merge されうるため、配線が終わるまで Vercel 側にも登録しない。
 
@@ -463,7 +465,7 @@ migration 失敗 / 誤った一括更新などで DB を任意時点に戻した
 1. Neon dashboard → 対象プロジェクト → `Branches` タブ → `Create Branch`。
 2. `Parent branch` を Production の現行 branch、`Time travel` で戻したい時刻 (UTC) を指定する (`<RESTORE_TIMESTAMP>`)。
 3. 新 branch の connection string (`postgresql://...` 形式、host 部分が新 branch 用ホストに変わる) を取得する。
-4. Vercel Production scope の `DATABASE_URL` を新 branch の値に更新する (`vercel env rm DATABASE_URL production --yes` → `vercel env add DATABASE_URL production` → 値貼り付け)。詳細手順は「Secret rotation」セクションの `gh secret set` の安全な渡し方に準じて TTY で実行する。
+4. Vercel Production scope の `DATABASE_URL` を新 branch の値に更新する (`vercel env rm DATABASE_URL production --yes` → `vercel env add DATABASE_URL production` → 値貼り付け)。`vercel env add` も TTY 入力により値が shell history に残らない原則に従う (本書「Secret rotation」セクション冒頭で `gh secret set` を例として詳述している原則と同じ)。
 5. Vercel を `vercel --prod` で redeploy する (env 変更は次回 deploy で反映)。
 6. Production URL で巻き戻された状態を確認する。
 7. 旧 branch は数日間保持し、原因調査が完了したら `Delete Branch` で削除する。
