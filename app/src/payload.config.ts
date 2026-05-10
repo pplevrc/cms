@@ -13,8 +13,7 @@ const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 // CORS / CSRF allow-list は env vars 経由でのみ指定。`*` (全許可) は許容しない。
-// 値はカンマ区切り (例: `http://localhost:3000,https://admin.example.com`)。
-// 詳細は designs/03-public-repo-security-model.md 参照。
+// 値はカンマ区切りのオリジン (例: `https://<DOMAIN_1>,https://<DOMAIN_2>`)。
 const allowedOrigins = requireEnv('ALLOWED_ORIGINS')
   .split(',')
   .map((origin) => origin.trim())
@@ -30,9 +29,9 @@ if (allowedOrigins.length === 0) {
   )
 }
 
-// CLAUDE.md §4-7「CORS / CSRF を `*` で実装しない」を env vars の設定ミスから
-// 守るためのガード。`ALLOWED_ORIGINS=*` で起動した場合、配列要素ベース判定の
-// Payload で全許可と等価になる経路が生まれるため、boot 時点で明示 throw する。
+// `*` (全許可) を env vars 経由で混入させないための最終ガード。配列要素ベース
+// 判定の Payload で `ALLOWED_ORIGINS=*` のような誤設定が全許可と等価になる経路
+// を、boot 時点で明示 throw して塞ぐ。
 if (allowedOrigins.includes('*')) {
   throw new Error(
     'ALLOWED_ORIGINS に `*` (全許可) は指定できません。許可するオリジンをカンマ区切りで明示的に列挙してください。',
