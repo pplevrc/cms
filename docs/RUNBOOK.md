@@ -501,3 +501,96 @@ credential 漏洩 / 不正アクセス検知 / 法的要請など、即座に公
 - **Neon Branch 切り戻し後も古いデータが見える**: Vercel が古い `DATABASE_URL` で deploy されたままになっている (env 変更が次回 deploy で反映されるため)。`vercel --prod` で redeploy する。
 - **Take-down 中に Vercel Authentication を切ったが credential 鳥かごから漏洩 token が再利用された**: `PAYLOAD_SECRET` rotation が漏れている。Take-down の手順 3 を必ず通す。
 - **Take-down 解除タイミングの判断ミス**: 漏洩経路が特定できないまま Vercel Authentication を解除すると同じ攻撃が再発する。事後対応 3 項目をチェックリストとして必ず潰してから解除する。
+
+## PocketBase upstream の四半期 due diligence
+
+trial 期間中の CMS バックエンドとして採用している PocketBase の upstream 状態を、**四半期に 1 回** 観測して記録する手順。観測結果は private file に蓄積し、発火条件に該当する変化が見つかった時点で stack 移行検討用の別 Issue を起こす運用。
+
+### 目的
+
+vendor 信頼性を採用前 / 採用中に評価せず、後から運用方針を曲げる事態 (CLAUDE.md §1 Phase 2 の根本失敗パターン) を再演しないため。採用判断の根拠と「何が変わったら見直すか」を repo / private storage に明文化し、判断材料を個人の頭に閉じない (CLAUDE.md §2-2 シングルポイント障害排除)。
+
+trial 段階では既に以下の mitigation が組まれているため、upstream に変化があっても**即時の運用停止リスクは低い**:
+
+- `packages/cms-client` 境界 (CLAUDE §5-1) — 公開サイトは Domain 型のみ参照し、PocketBase 固有の REST / 型に縛られない
+- SQLite 標準 SQL ベース — `.dump` で schema / data を他 RDBMS (Postgres / MySQL 等) に持ち出せる
+- Pattern B (SSG-split) — 公開サイト訪問者は VPS / PocketBase に到達しない (ビルド時 fetch のみ)
+- off-VPS backup (`docs/RUNBOOK.md` 別運用、#42 で整備) — vendor 障害から独立して復旧可能
+
+本セクションはこれら mitigation を前提に、「採用継続 / 移行検討」の switch を四半期で押し直す運用手順を定義する。
+
+### 前提
+
+- 観測担当者は GitHub UI または `gh` CLI で public な GitHub repo / Security Advisories を閲覧できる
+- private snapshot 保管先 (`designs/private/vendors.md` の PocketBase 章) が手元に同期されている (`designs/private/` は gitignored、メンバー間別途同期)
+- 観測結果は **diff 形式** で残す — 「前回 snapshot との差分」が判定の主入力になるため、過去 snapshot を上書き消失させない
+
+### レビュー timing
+
+四半期末: **3 月末 / 6 月末 / 9 月末 / 12 月末**。trial 期間中は省略しない。Phase 3 移行後の継続要否は別途判断する (本セクションの対象外)。
+
+### 観測項目 (snapshot するもの)
+
+各四半期で以下 5 項目を観測し、`designs/private/vendors.md` の PocketBase snapshot 章を更新する。
+
+1. **直近 90 日の release / commit 活動**
+    - 確認源: `gh api repos/pocketbase/pocketbase/releases?per_page=30` / `gh api repos/pocketbase/pocketbase/commits?per_page=30`
+    - 観測軸: 月 1 release 以上、commit cadence が活発 (週単位で複数 commit があるか)
+2. **未解決の critical / high severity security advisory**
+    - 確認源: `gh api repos/pocketbase/pocketbase/security-advisories` または `https://github.com/pocketbase/pocketbase/security/advisories`
+    - 観測軸: 未解決 (`state` が `published` のまま未パッチ) の高深刻度件数。既知の medium 以下は記録のみで判定材料には含めない
+3. **v1.0 roadmap の進行**
+    - 確認源: `https://github.com/orgs/pocketbase/projects/2` (public project board)
+    - 観測軸: 完了済み issue / 残 issue / 直近 stage の動き。前回 snapshot との diff
+4. **直近 6 ヶ月の breaking change**
+    - 確認源: minor バージョン (`v0.NN.0`) リリースの release notes
+    - 観測軸: 本プロジェクトで利用している経路 (REST API / SQLite schema / `packages/cms-client` 内の adapter) に影響する変更の有無。手動 migration が必要になる変更は要評価
+5. **財政・sponsorship 状況**
+    - 確認源: maintainer の public 発言 (GitHub discussion / blog / sponsor page)、`https://github.com/sponsors/ganigeorgiev`
+    - 観測軸: 採用継続に影響しうる大きな変化 (助成終了 / 主要 sponsor 撤退 / commercial 化宣言 / archive 宣言など)。**具体額や個人特定情報は public doc に書かない** — private snapshot 内に留める
+
+### 手順
+
+1. 上記 5 項目を順番に確認し、各項目について「前回 snapshot からの変化」を 1-2 行で記述する
+2. `designs/private/vendors.md` の PocketBase snapshot 章を **追記** する (既存 snapshot は履歴として残す)。snapshot 取得日を section heading に入れる
+3. 5 項目の総合判定として「採用継続 OK」または「採用見直し必要」を 1 段落で記述
+4. 「採用見直し必要」と判定された場合のみ、次の「発火条件」セクションに従って後続アクションを起こす
+
+snapshot は private に閉じるが、**「四半期確認を実施した事実」自体は公開 doc に記載してよい** (`designs/05` の VPS 集約 threat model などで「定期確認による属人化排除」として参照)。
+
+### 発火条件と起こすべき action
+
+snapshot 結果のうち以下のいずれかに該当した場合、本プロジェクトでの採用継続を見直し、stack 移行検討を別 Issue として開始する:
+
+- **release 停止**: PocketBase の last release が **60 日以上** 停止している (patch / minor ともに)
+- **upstream archive 宣言**: maintainer が repo の archive / 開発終了を公的に宣言
+- **対応不可能な breaking change**: 本プロジェクトが利用している経路 (REST API / SQLite schema / 認証フロー) に、`packages/cms-client` 境界レイヤだけでは吸収不能な変更が入った
+- **重大な security advisory**: critical / high severity の未解決 advisory が直近 30 日以内に発生し、upstream で対応 PR / branch が示されていない
+
+上記いずれかに該当した場合の action:
+
+1. **別 Issue を起票** — タイトル例 `[stack] PocketBase 採用見直し: <発火条件>`、priority urgent、AC に「移行先候補の評価 + 移行手順 draft + go/no-go 判定」を含める
+2. **移行先候補の参照** — `designs/private/vendors.md` の B 章 (escape hatch 候補) を参照。第 1 候補 / 第 2 候補の事前評価が記録されている前提で、本 Issue では「現状観測との差分」だけを評価すればよい
+3. **#42 (DR / バックアップ) との接続** — F-5 (PocketBase upstream maintain 停止シナリオ) の移行手順を実行可能性レベルで確認
+
+### snapshot 保管場所の参照
+
+詳細な snapshot データは `designs/private/vendors.md` (gitignored、各メンバーが個別保管) の PocketBase 章を参照する。本書には `designs/private/` の具体内容や vendor の特定情報を転載しない。
+
+### 既知の bus factor mitigation
+
+upstream が単一 maintainer であることに起因する bus factor は、本プロジェクト側で以下の構造的措置により分散済み:
+
+- **`packages/cms-client` 境界** (CLAUDE §5-1) — 公開サイトは PocketBase 固有 API を直接踏まないため、移行時の影響半径が `app/` 内に閉じる
+- **SQLite portability** — `.dump` 経由で schema + data を別 RDBMS にエクスポート可能。データを vendor に握られない (CLAUDE §2-1)
+- **Pattern B (SSG-split)** — 公開サイトはビルド時 fetch のみで PocketBase に依存せず動作する
+- **off-VPS backup** (#42) — vendor 障害から独立した経路で復旧データを保持
+- **escape hatch 候補の事前評価** — `designs/private/vendors.md` の B 章で第 1 / 第 2 候補とその切替工数を事前に明文化済み
+
+これらにより、upstream の単一 maintainer 依存が即座に本プロジェクトの単一障害点にならない構造を維持する。
+
+### よくある失敗
+
+- **snapshot を上書きして履歴が消える**: `designs/private/vendors.md` の snapshot 章は **追記**。過去 snapshot は履歴として残す。前回 snapshot との diff が判定の主入力なため、消すと次回判定の根拠が失われる
+- **public doc に snapshot の具体値 (現在の sponsorship 額、maintainer の個人発言の引用等) を書く**: CLAUDE §4 違反。public doc には「四半期確認している」事実のみを書き、具体値は `designs/private/vendors.md` に閉じる
+- **発火条件に該当したが「観測当面」として様子見にする**: 発火条件は「別 Issue を起票する閾値」として定義済み。様子見にする判断自体を Issue 化し、判断根拠を残す
